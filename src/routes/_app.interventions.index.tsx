@@ -1,5 +1,7 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
+import { zodValidator, fallback } from "@tanstack/zod-adapter";
+import { z } from "zod";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useInterventions } from "@/lib/queries";
@@ -8,8 +10,14 @@ import { formatDateFR } from "@/lib/schemas";
 import { Plus, ChevronLeft, ChevronRight, List as ListIcon, CalendarDays, MapPin } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+const searchSchema = z.object({
+  view: fallback(z.enum(["calendar", "list"]), "calendar").default("calendar"),
+  statut: fallback(z.enum(["all", "planifiee", "realisee", "annulee"]), "all").default("all"),
+});
+
 export const Route = createFileRoute("/_app/interventions/")({
   head: () => ({ meta: [{ title: "Interventions — CITY DERAT" }] }),
+  validateSearch: zodValidator(searchSchema),
   component: InterventionsPage,
 });
 
@@ -23,13 +31,26 @@ function statutLabel(v: string) {
   return STATUTS_INTERVENTION.find((s) => s.value === v)?.label ?? v;
 }
 
+const STATUT_FILTERS = [
+  { value: "all", label: "Toutes" },
+  { value: "planifiee", label: "Planifiées" },
+  { value: "realisee", label: "Réalisées" },
+  { value: "annulee", label: "Annulées" },
+] as const;
+
 function InterventionsPage() {
   const { data: interventions = [], isLoading } = useInterventions();
-  const [view, setView] = useState<"calendar" | "list">("calendar");
+  const { view, statut } = Route.useSearch();
+  const navigate = useNavigate({ from: "/interventions" });
   const [cursor, setCursor] = useState(() => {
     const d = new Date();
     return new Date(d.getFullYear(), d.getMonth(), 1);
   });
+
+  const filtered = useMemo(
+    () => (statut === "all" ? interventions : interventions.filter((i) => i.statut === statut)),
+    [interventions, statut],
+  );
 
   return (
     <div className="space-y-4">
@@ -40,35 +61,60 @@ function InterventionsPage() {
         </Button>
       </div>
 
-      <div className="inline-flex rounded-md border bg-card p-0.5">
-        <button
-          type="button"
-          onClick={() => setView("calendar")}
-          className={cn(
-            "inline-flex items-center gap-1.5 rounded px-3 py-1.5 text-sm font-medium transition-colors",
-            view === "calendar" ? "bg-primary text-primary-foreground" : "text-muted-foreground"
-          )}
-        >
-          <CalendarDays className="h-4 w-4" /> Calendrier
-        </button>
-        <button
-          type="button"
-          onClick={() => setView("list")}
-          className={cn(
-            "inline-flex items-center gap-1.5 rounded px-3 py-1.5 text-sm font-medium transition-colors",
-            view === "list" ? "bg-primary text-primary-foreground" : "text-muted-foreground"
-          )}
-        >
-          <ListIcon className="h-4 w-4" /> Liste
-        </button>
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="inline-flex rounded-md border bg-card p-0.5">
+          <button
+            type="button"
+            onClick={() => navigate({ search: (p) => ({ ...p, view: "calendar" }) })}
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded px-3 py-1.5 text-sm font-medium transition-colors",
+              view === "calendar" ? "bg-primary text-primary-foreground" : "text-muted-foreground"
+            )}
+          >
+            <CalendarDays className="h-4 w-4" /> Calendrier
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate({ search: (p) => ({ ...p, view: "list" }) })}
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded px-3 py-1.5 text-sm font-medium transition-colors",
+              view === "list" ? "bg-primary text-primary-foreground" : "text-muted-foreground"
+            )}
+          >
+            <ListIcon className="h-4 w-4" /> Liste
+          </button>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-1.5">
+        {STATUT_FILTERS.map((f) => (
+          <button
+            key={f.value}
+            type="button"
+            onClick={() => navigate({ search: (p) => ({ ...p, statut: f.value }) })}
+            className={cn(
+              "rounded-full px-3 py-1 text-xs font-medium border transition-colors",
+              statut === f.value
+                ? "bg-primary text-primary-foreground border-primary"
+                : "bg-card text-muted-foreground border-border hover:text-foreground"
+            )}
+          >
+            {f.label}
+            <span className="ml-1.5 opacity-70">
+              {f.value === "all"
+                ? interventions.length
+                : interventions.filter((i) => i.statut === f.value).length}
+            </span>
+          </button>
+        ))}
       </div>
 
       {isLoading ? (
         <div className="text-center text-sm text-muted-foreground py-10">Chargement…</div>
       ) : view === "calendar" ? (
-        <MonthCalendar cursor={cursor} setCursor={setCursor} interventions={interventions} />
+        <MonthCalendar cursor={cursor} setCursor={setCursor} interventions={filtered} />
       ) : (
-        <ListView interventions={interventions} />
+        <ListView interventions={filtered} />
       )}
     </div>
   );
@@ -88,7 +134,6 @@ function MonthCalendar({
   const first = new Date(year, month, 1);
   const last = new Date(year, month + 1, 0);
 
-  // Lundi = début de semaine
   const startWeekday = (first.getDay() + 6) % 7;
   const daysInMonth = last.getDate();
 
@@ -195,7 +240,7 @@ function ListView({ interventions }: { interventions: any[] }) {
   if (interventions.length === 0) {
     return (
       <Card><CardContent className="py-10 text-center text-sm text-muted-foreground">
-        Aucune intervention enregistrée.
+        Aucune intervention pour ce filtre.
       </CardContent></Card>
     );
   }
