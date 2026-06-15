@@ -12,7 +12,13 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as AppIndexRouteImport } from './routes/_app.index'
+import { Route as AppParametresRouteImport } from './routes/_app.parametres'
+import { Route as AppInterventionsIndexRouteImport } from './routes/_app.interventions.index'
+import { Route as AppFacturesIndexRouteImport } from './routes/_app.factures.index'
+import { Route as AppContratsIndexRouteImport } from './routes/_app.contrats.index'
 import { Route as AppClientsIndexRouteImport } from './routes/_app.clients.index'
+import { Route as AppInterventionsNewRouteImport } from './routes/_app.interventions.new'
+import { Route as AppFacturesNewRouteImport } from './routes/_app.factures.new'
 import { Route as AppClientsNewRouteImport } from './routes/_app.clients.new'
 import { Route as AppClientsIdRouteImport } from './routes/_app.clients.$id'
 
@@ -30,9 +36,39 @@ const AppIndexRoute = AppIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AppRoute,
 } as any)
+const AppParametresRoute = AppParametresRouteImport.update({
+  id: '/parametres',
+  path: '/parametres',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppInterventionsIndexRoute = AppInterventionsIndexRouteImport.update({
+  id: '/interventions/',
+  path: '/interventions/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppFacturesIndexRoute = AppFacturesIndexRouteImport.update({
+  id: '/factures/',
+  path: '/factures/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppContratsIndexRoute = AppContratsIndexRouteImport.update({
+  id: '/contrats/',
+  path: '/contrats/',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppClientsIndexRoute = AppClientsIndexRouteImport.update({
   id: '/clients/',
   path: '/clients/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppInterventionsNewRoute = AppInterventionsNewRouteImport.update({
+  id: '/interventions/new',
+  path: '/interventions/new',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppFacturesNewRoute = AppFacturesNewRouteImport.update({
+  id: '/factures/new',
+  path: '/factures/new',
   getParentRoute: () => AppRoute,
 } as any)
 const AppClientsNewRoute = AppClientsNewRouteImport.update({
@@ -49,39 +85,85 @@ const AppClientsIdRoute = AppClientsIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
   '/auth': typeof AuthRoute
+  '/parametres': typeof AppParametresRoute
   '/clients/$id': typeof AppClientsIdRoute
   '/clients/new': typeof AppClientsNewRoute
+  '/factures/new': typeof AppFacturesNewRoute
+  '/interventions/new': typeof AppInterventionsNewRoute
   '/clients/': typeof AppClientsIndexRoute
+  '/contrats/': typeof AppContratsIndexRoute
+  '/factures/': typeof AppFacturesIndexRoute
+  '/interventions/': typeof AppInterventionsIndexRoute
 }
 export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
+  '/parametres': typeof AppParametresRoute
   '/': typeof AppIndexRoute
   '/clients/$id': typeof AppClientsIdRoute
   '/clients/new': typeof AppClientsNewRoute
+  '/factures/new': typeof AppFacturesNewRoute
+  '/interventions/new': typeof AppInterventionsNewRoute
   '/clients': typeof AppClientsIndexRoute
+  '/contrats': typeof AppContratsIndexRoute
+  '/factures': typeof AppFacturesIndexRoute
+  '/interventions': typeof AppInterventionsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_app': typeof AppRouteWithChildren
   '/auth': typeof AuthRoute
+  '/_app/parametres': typeof AppParametresRoute
   '/_app/': typeof AppIndexRoute
   '/_app/clients/$id': typeof AppClientsIdRoute
   '/_app/clients/new': typeof AppClientsNewRoute
+  '/_app/factures/new': typeof AppFacturesNewRoute
+  '/_app/interventions/new': typeof AppInterventionsNewRoute
   '/_app/clients/': typeof AppClientsIndexRoute
+  '/_app/contrats/': typeof AppContratsIndexRoute
+  '/_app/factures/': typeof AppFacturesIndexRoute
+  '/_app/interventions/': typeof AppInterventionsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/auth' | '/clients/$id' | '/clients/new' | '/clients/'
+  fullPaths:
+    | '/'
+    | '/auth'
+    | '/parametres'
+    | '/clients/$id'
+    | '/clients/new'
+    | '/factures/new'
+    | '/interventions/new'
+    | '/clients/'
+    | '/contrats/'
+    | '/factures/'
+    | '/interventions/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/auth' | '/' | '/clients/$id' | '/clients/new' | '/clients'
+  to:
+    | '/auth'
+    | '/parametres'
+    | '/'
+    | '/clients/$id'
+    | '/clients/new'
+    | '/factures/new'
+    | '/interventions/new'
+    | '/clients'
+    | '/contrats'
+    | '/factures'
+    | '/interventions'
   id:
     | '__root__'
     | '/_app'
     | '/auth'
+    | '/_app/parametres'
     | '/_app/'
     | '/_app/clients/$id'
     | '/_app/clients/new'
+    | '/_app/factures/new'
+    | '/_app/interventions/new'
     | '/_app/clients/'
+    | '/_app/contrats/'
+    | '/_app/factures/'
+    | '/_app/interventions/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -112,11 +194,53 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppIndexRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/parametres': {
+      id: '/_app/parametres'
+      path: '/parametres'
+      fullPath: '/parametres'
+      preLoaderRoute: typeof AppParametresRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/interventions/': {
+      id: '/_app/interventions/'
+      path: '/interventions'
+      fullPath: '/interventions/'
+      preLoaderRoute: typeof AppInterventionsIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/factures/': {
+      id: '/_app/factures/'
+      path: '/factures'
+      fullPath: '/factures/'
+      preLoaderRoute: typeof AppFacturesIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/contrats/': {
+      id: '/_app/contrats/'
+      path: '/contrats'
+      fullPath: '/contrats/'
+      preLoaderRoute: typeof AppContratsIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/clients/': {
       id: '/_app/clients/'
       path: '/clients'
       fullPath: '/clients/'
       preLoaderRoute: typeof AppClientsIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/interventions/new': {
+      id: '/_app/interventions/new'
+      path: '/interventions/new'
+      fullPath: '/interventions/new'
+      preLoaderRoute: typeof AppInterventionsNewRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/factures/new': {
+      id: '/_app/factures/new'
+      path: '/factures/new'
+      fullPath: '/factures/new'
+      preLoaderRoute: typeof AppFacturesNewRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/clients/new': {
@@ -137,17 +261,29 @@ declare module '@tanstack/react-router' {
 }
 
 interface AppRouteChildren {
+  AppParametresRoute: typeof AppParametresRoute
   AppIndexRoute: typeof AppIndexRoute
   AppClientsIdRoute: typeof AppClientsIdRoute
   AppClientsNewRoute: typeof AppClientsNewRoute
+  AppFacturesNewRoute: typeof AppFacturesNewRoute
+  AppInterventionsNewRoute: typeof AppInterventionsNewRoute
   AppClientsIndexRoute: typeof AppClientsIndexRoute
+  AppContratsIndexRoute: typeof AppContratsIndexRoute
+  AppFacturesIndexRoute: typeof AppFacturesIndexRoute
+  AppInterventionsIndexRoute: typeof AppInterventionsIndexRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
+  AppParametresRoute: AppParametresRoute,
   AppIndexRoute: AppIndexRoute,
   AppClientsIdRoute: AppClientsIdRoute,
   AppClientsNewRoute: AppClientsNewRoute,
+  AppFacturesNewRoute: AppFacturesNewRoute,
+  AppInterventionsNewRoute: AppInterventionsNewRoute,
   AppClientsIndexRoute: AppClientsIndexRoute,
+  AppContratsIndexRoute: AppContratsIndexRoute,
+  AppFacturesIndexRoute: AppFacturesIndexRoute,
+  AppInterventionsIndexRoute: AppInterventionsIndexRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
