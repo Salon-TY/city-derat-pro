@@ -4,13 +4,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-const navItems = [
+const navItems: { to: string; label: string; icon: typeof LayoutDashboard; exact?: boolean }[] = [
   { to: "/", label: "Tableau", icon: LayoutDashboard, exact: true },
   { to: "/clients", label: "Clients", icon: Users },
   { to: "/interventions", label: "Interv.", icon: ClipboardList },
   { to: "/factures", label: "Factures", icon: FileText },
   { to: "/contrats", label: "Contrats", icon: FileSignature },
-] as const;
+];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const location = useLocation();
