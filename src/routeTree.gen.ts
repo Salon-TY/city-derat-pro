@@ -9,61 +9,289 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthRouteImport } from './routes/auth'
+import { Route as AppRouteImport } from './routes/_app'
+import { Route as AppIndexRouteImport } from './routes/_app.index'
+import { Route as AppParametresRouteImport } from './routes/_app.parametres'
+import { Route as AppInterventionsIndexRouteImport } from './routes/_app.interventions.index'
+import { Route as AppFacturesIndexRouteImport } from './routes/_app.factures.index'
+import { Route as AppContratsIndexRouteImport } from './routes/_app.contrats.index'
+import { Route as AppClientsIndexRouteImport } from './routes/_app.clients.index'
+import { Route as AppInterventionsNewRouteImport } from './routes/_app.interventions.new'
+import { Route as AppFacturesNewRouteImport } from './routes/_app.factures.new'
+import { Route as AppClientsNewRouteImport } from './routes/_app.clients.new'
+import { Route as AppClientsIdRouteImport } from './routes/_app.clients.$id'
 
-const IndexRoute = IndexRouteImport.update({
+const AuthRoute = AuthRouteImport.update({
+  id: '/auth',
+  path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AppRoute = AppRouteImport.update({
+  id: '/_app',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AppIndexRoute = AppIndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => AppRoute,
+} as any)
+const AppParametresRoute = AppParametresRouteImport.update({
+  id: '/parametres',
+  path: '/parametres',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppInterventionsIndexRoute = AppInterventionsIndexRouteImport.update({
+  id: '/interventions/',
+  path: '/interventions/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppFacturesIndexRoute = AppFacturesIndexRouteImport.update({
+  id: '/factures/',
+  path: '/factures/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppContratsIndexRoute = AppContratsIndexRouteImport.update({
+  id: '/contrats/',
+  path: '/contrats/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppClientsIndexRoute = AppClientsIndexRouteImport.update({
+  id: '/clients/',
+  path: '/clients/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppInterventionsNewRoute = AppInterventionsNewRouteImport.update({
+  id: '/interventions/new',
+  path: '/interventions/new',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppFacturesNewRoute = AppFacturesNewRouteImport.update({
+  id: '/factures/new',
+  path: '/factures/new',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppClientsNewRoute = AppClientsNewRouteImport.update({
+  id: '/clients/new',
+  path: '/clients/new',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppClientsIdRoute = AppClientsIdRouteImport.update({
+  id: '/clients/$id',
+  path: '/clients/$id',
+  getParentRoute: () => AppRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
+  '/': typeof AppIndexRoute
+  '/auth': typeof AuthRoute
+  '/parametres': typeof AppParametresRoute
+  '/clients/$id': typeof AppClientsIdRoute
+  '/clients/new': typeof AppClientsNewRoute
+  '/factures/new': typeof AppFacturesNewRoute
+  '/interventions/new': typeof AppInterventionsNewRoute
+  '/clients/': typeof AppClientsIndexRoute
+  '/contrats/': typeof AppContratsIndexRoute
+  '/factures/': typeof AppFacturesIndexRoute
+  '/interventions/': typeof AppInterventionsIndexRoute
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
+  '/auth': typeof AuthRoute
+  '/parametres': typeof AppParametresRoute
+  '/': typeof AppIndexRoute
+  '/clients/$id': typeof AppClientsIdRoute
+  '/clients/new': typeof AppClientsNewRoute
+  '/factures/new': typeof AppFacturesNewRoute
+  '/interventions/new': typeof AppInterventionsNewRoute
+  '/clients': typeof AppClientsIndexRoute
+  '/contrats': typeof AppContratsIndexRoute
+  '/factures': typeof AppFacturesIndexRoute
+  '/interventions': typeof AppInterventionsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
-  '/': typeof IndexRoute
+  '/_app': typeof AppRouteWithChildren
+  '/auth': typeof AuthRoute
+  '/_app/parametres': typeof AppParametresRoute
+  '/_app/': typeof AppIndexRoute
+  '/_app/clients/$id': typeof AppClientsIdRoute
+  '/_app/clients/new': typeof AppClientsNewRoute
+  '/_app/factures/new': typeof AppFacturesNewRoute
+  '/_app/interventions/new': typeof AppInterventionsNewRoute
+  '/_app/clients/': typeof AppClientsIndexRoute
+  '/_app/contrats/': typeof AppContratsIndexRoute
+  '/_app/factures/': typeof AppFacturesIndexRoute
+  '/_app/interventions/': typeof AppInterventionsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/auth'
+    | '/parametres'
+    | '/clients/$id'
+    | '/clients/new'
+    | '/factures/new'
+    | '/interventions/new'
+    | '/clients/'
+    | '/contrats/'
+    | '/factures/'
+    | '/interventions/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/auth'
+    | '/parametres'
+    | '/'
+    | '/clients/$id'
+    | '/clients/new'
+    | '/factures/new'
+    | '/interventions/new'
+    | '/clients'
+    | '/contrats'
+    | '/factures'
+    | '/interventions'
+  id:
+    | '__root__'
+    | '/_app'
+    | '/auth'
+    | '/_app/parametres'
+    | '/_app/'
+    | '/_app/clients/$id'
+    | '/_app/clients/new'
+    | '/_app/factures/new'
+    | '/_app/interventions/new'
+    | '/_app/clients/'
+    | '/_app/contrats/'
+    | '/_app/factures/'
+    | '/_app/interventions/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
+  AppRoute: typeof AppRouteWithChildren
+  AuthRoute: typeof AuthRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/': {
-      id: '/'
+    '/auth': {
+      id: '/auth'
+      path: '/auth'
+      fullPath: '/auth'
+      preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_app': {
+      id: '/_app'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AppRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_app/': {
+      id: '/_app/'
       path: '/'
       fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof AppIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/parametres': {
+      id: '/_app/parametres'
+      path: '/parametres'
+      fullPath: '/parametres'
+      preLoaderRoute: typeof AppParametresRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/interventions/': {
+      id: '/_app/interventions/'
+      path: '/interventions'
+      fullPath: '/interventions/'
+      preLoaderRoute: typeof AppInterventionsIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/factures/': {
+      id: '/_app/factures/'
+      path: '/factures'
+      fullPath: '/factures/'
+      preLoaderRoute: typeof AppFacturesIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/contrats/': {
+      id: '/_app/contrats/'
+      path: '/contrats'
+      fullPath: '/contrats/'
+      preLoaderRoute: typeof AppContratsIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/clients/': {
+      id: '/_app/clients/'
+      path: '/clients'
+      fullPath: '/clients/'
+      preLoaderRoute: typeof AppClientsIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/interventions/new': {
+      id: '/_app/interventions/new'
+      path: '/interventions/new'
+      fullPath: '/interventions/new'
+      preLoaderRoute: typeof AppInterventionsNewRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/factures/new': {
+      id: '/_app/factures/new'
+      path: '/factures/new'
+      fullPath: '/factures/new'
+      preLoaderRoute: typeof AppFacturesNewRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/clients/new': {
+      id: '/_app/clients/new'
+      path: '/clients/new'
+      fullPath: '/clients/new'
+      preLoaderRoute: typeof AppClientsNewRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/clients/$id': {
+      id: '/_app/clients/$id'
+      path: '/clients/$id'
+      fullPath: '/clients/$id'
+      preLoaderRoute: typeof AppClientsIdRouteImport
+      parentRoute: typeof AppRoute
     }
   }
 }
 
+interface AppRouteChildren {
+  AppParametresRoute: typeof AppParametresRoute
+  AppIndexRoute: typeof AppIndexRoute
+  AppClientsIdRoute: typeof AppClientsIdRoute
+  AppClientsNewRoute: typeof AppClientsNewRoute
+  AppFacturesNewRoute: typeof AppFacturesNewRoute
+  AppInterventionsNewRoute: typeof AppInterventionsNewRoute
+  AppClientsIndexRoute: typeof AppClientsIndexRoute
+  AppContratsIndexRoute: typeof AppContratsIndexRoute
+  AppFacturesIndexRoute: typeof AppFacturesIndexRoute
+  AppInterventionsIndexRoute: typeof AppInterventionsIndexRoute
+}
+
+const AppRouteChildren: AppRouteChildren = {
+  AppParametresRoute: AppParametresRoute,
+  AppIndexRoute: AppIndexRoute,
+  AppClientsIdRoute: AppClientsIdRoute,
+  AppClientsNewRoute: AppClientsNewRoute,
+  AppFacturesNewRoute: AppFacturesNewRoute,
+  AppInterventionsNewRoute: AppInterventionsNewRoute,
+  AppClientsIndexRoute: AppClientsIndexRoute,
+  AppContratsIndexRoute: AppContratsIndexRoute,
+  AppFacturesIndexRoute: AppFacturesIndexRoute,
+  AppInterventionsIndexRoute: AppInterventionsIndexRoute,
+}
+
+const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
-  IndexRoute: IndexRoute,
+  AppRoute: AppRouteWithChildren,
+  AuthRoute: AuthRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
