@@ -14,6 +14,7 @@ const searchSchema = z.object({
   view: fallback(z.enum(["calendar", "list"]), "calendar").default("calendar"),
   statut: fallback(z.enum(["all", "planifiee", "realisee", "annulee"]), "all").default("all"),
 });
+type SearchParams = z.infer<typeof searchSchema>;
 
 export const Route = createFileRoute("/_app/interventions/")({
   head: () => ({ meta: [{ title: "Interventions — CITY DERAT" }] }),
