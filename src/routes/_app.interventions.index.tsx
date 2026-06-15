@@ -14,6 +14,7 @@ const searchSchema = z.object({
   view: fallback(z.enum(["calendar", "list"]), "calendar").default("calendar"),
   statut: fallback(z.enum(["all", "planifiee", "realisee", "annulee"]), "all").default("all"),
 });
+type SearchParams = z.infer<typeof searchSchema>;
 
 export const Route = createFileRoute("/_app/interventions/")({
   head: () => ({ meta: [{ title: "Interventions — CITY DERAT" }] }),
@@ -41,7 +42,7 @@ const STATUT_FILTERS = [
 function InterventionsPage() {
   const { data: interventions = [], isLoading } = useInterventions();
   const { view, statut } = Route.useSearch();
-  const navigate = useNavigate({ from: "/interventions" });
+  const navigate = Route.useNavigate();
   const [cursor, setCursor] = useState(() => {
     const d = new Date();
     return new Date(d.getFullYear(), d.getMonth(), 1);
