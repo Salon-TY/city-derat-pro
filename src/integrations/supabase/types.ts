@@ -14,13 +14,354 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      clients: {
+        Row: {
+          adresse_site: string | null
+          created_at: string
+          email: string | null
+          id: string
+          notes: string | null
+          raison_sociale: string
+          siret: string | null
+          telephone: string | null
+          type_nuisible: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          adresse_site?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          notes?: string | null
+          raison_sociale: string
+          siret?: string | null
+          telephone?: string | null
+          type_nuisible?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          adresse_site?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          notes?: string | null
+          raison_sociale?: string
+          siret?: string | null
+          telephone?: string | null
+          type_nuisible?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      company_settings: {
+        Row: {
+          adresse: string | null
+          bic: string | null
+          created_at: string
+          email: string | null
+          iban: string | null
+          next_invoice_number: number
+          nom: string
+          siret: string | null
+          telephone: string | null
+          tva_number: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          adresse?: string | null
+          bic?: string | null
+          created_at?: string
+          email?: string | null
+          iban?: string | null
+          next_invoice_number?: number
+          nom?: string
+          siret?: string | null
+          telephone?: string | null
+          tva_number?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          adresse?: string | null
+          bic?: string | null
+          created_at?: string
+          email?: string | null
+          iban?: string | null
+          next_invoice_number?: number
+          nom?: string
+          siret?: string | null
+          telephone?: string | null
+          tva_number?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      contracts: {
+        Row: {
+          client_id: string
+          created_at: string
+          date_debut: string
+          date_fin: string
+          id: string
+          nb_passages_inclus: number
+          notes: string | null
+          passages_realises: number
+          statut: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          date_debut: string
+          date_fin: string
+          id?: string
+          nb_passages_inclus?: number
+          notes?: string | null
+          passages_realises?: number
+          statut?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          date_debut?: string
+          date_fin?: string
+          id?: string
+          nb_passages_inclus?: number
+          notes?: string | null
+          passages_realises?: number
+          statut?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contracts_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      interventions: {
+        Row: {
+          adresse_site: string | null
+          client_id: string
+          created_at: string
+          date: string
+          date_prochain_passage: string | null
+          id: string
+          observations: string | null
+          produits: string | null
+          quantite: string | null
+          statut: string
+          type_intervention: string
+          type_nuisible: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          adresse_site?: string | null
+          client_id: string
+          created_at?: string
+          date: string
+          date_prochain_passage?: string | null
+          id?: string
+          observations?: string | null
+          produits?: string | null
+          quantite?: string | null
+          statut?: string
+          type_intervention?: string
+          type_nuisible?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          adresse_site?: string | null
+          client_id?: string
+          created_at?: string
+          date?: string
+          date_prochain_passage?: string | null
+          id?: string
+          observations?: string | null
+          produits?: string | null
+          quantite?: string | null
+          statut?: string
+          type_intervention?: string
+          type_nuisible?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interventions_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      invoice_lines: {
+        Row: {
+          created_at: string
+          description: string
+          id: string
+          invoice_id: string
+          ordre: number
+          prix_unitaire_ht: number
+          quantite: number
+          total_ht: number
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          description: string
+          id?: string
+          invoice_id: string
+          ordre?: number
+          prix_unitaire_ht?: number
+          quantite?: number
+          total_ht?: number
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          id?: string
+          invoice_id?: string
+          ordre?: number
+          prix_unitaire_ht?: number
+          quantite?: number
+          total_ht?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoice_lines_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      invoices: {
+        Row: {
+          adresse_site: string | null
+          client_id: string
+          created_at: string
+          date_facture: string
+          echeance: string | null
+          id: string
+          intervention_id: string | null
+          notes: string | null
+          numero: number
+          statut: string
+          total_ht: number
+          total_ttc: number
+          tva: number
+          tva_taux: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          adresse_site?: string | null
+          client_id: string
+          created_at?: string
+          date_facture?: string
+          echeance?: string | null
+          id?: string
+          intervention_id?: string | null
+          notes?: string | null
+          numero: number
+          statut?: string
+          total_ht?: number
+          total_ttc?: number
+          tva?: number
+          tva_taux?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          adresse_site?: string | null
+          client_id?: string
+          created_at?: string
+          date_facture?: string
+          echeance?: string | null
+          id?: string
+          intervention_id?: string | null
+          notes?: string | null
+          numero?: number
+          statut?: string
+          total_ht?: number
+          total_ttc?: number
+          tva?: number
+          tva_taux?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoices_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_intervention_id_fkey"
+            columns: ["intervention_id"]
+            isOneToOne: false
+            referencedRelation: "interventions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      service_presets: {
+        Row: {
+          created_at: string
+          description: string
+          id: string
+          label: string
+          ordre: number
+          prix_unitaire_ht: number
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          description: string
+          id?: string
+          label: string
+          ordre?: number
+          prix_unitaire_ht?: number
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          id?: string
+          label?: string
+          ordre?: number
+          prix_unitaire_ht?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      next_invoice_number: { Args: never; Returns: number }
     }
     Enums: {
       [_ in never]: never
