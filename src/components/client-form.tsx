@@ -17,7 +17,7 @@ export function ClientForm({
   submitLabel?: string;
 }) {
   const form = useForm<ClientFormType>({
-    resolver: zodResolver(clientSchema),
+    resolver: zodResolver(clientSchema) as any,
     defaultValues: {
       raison_sociale: defaultValues?.raison_sociale ?? "",
       adresse_site: defaultValues?.adresse_site ?? "",
