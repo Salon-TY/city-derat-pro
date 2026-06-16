@@ -98,6 +98,34 @@ export type Preset = {
   ordre: number;
 };
 
+export type StockProduct = {
+  id: string;
+  user_id: string;
+  nom: string;
+  unite: string;
+  quantite: number;
+  seuil_alerte: number;
+  prix_achat_ht: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export function useStockProducts() {
+  return useQuery({
+    queryKey: ["stock_products"],
+    queryFn: async (): Promise<StockProduct[]> => {
+      const { data, error } = await db.from("stock_products").select("*").order("nom");
+      if (error) throw error;
+      return (data ?? []).map((p: any) => ({
+        ...p,
+        quantite: Number(p.quantite),
+        seuil_alerte: Number(p.seuil_alerte),
+        prix_achat_ht: Number(p.prix_achat_ht),
+      }));
+    },
+  });
+}
+
 export function useClients() {
   return useQuery({
     queryKey: ["clients"],
