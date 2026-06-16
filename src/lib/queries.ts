@@ -246,16 +246,6 @@ export function usePresets() {
   });
 }
 
-export function useStockProducts() {
-  return useQuery({
-    queryKey: ["stock"],
-    queryFn: async (): Promise<StockProduct[]> => {
-      const { data, error } = await db.from("stock_products").select("*").order("nom");
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
-}
 
 export function useDashboardStats() {
   return useQuery({
