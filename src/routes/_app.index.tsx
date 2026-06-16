@@ -3,7 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useDashboardStats } from "@/lib/queries";
 import { formatEUR } from "@/lib/schemas";
-import { ClipboardList, Euro, AlertCircle, Plus, UserPlus, FileText } from "lucide-react";
+import { ClipboardList, Euro, AlertCircle, Plus, UserPlus, FileText, PackageX } from "lucide-react";
 
 export const Route = createFileRoute("/_app/")({
   head: () => ({ meta: [{ title: "Tableau de bord — CITY DERAT" }] }),
