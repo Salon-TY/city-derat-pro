@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
-import { LayoutDashboard, Users, ClipboardList, FileText, FileSignature, Settings, LogOut, Bug } from "lucide-react";
+import { LayoutDashboard, Users, ClipboardList, FileText, FileSignature, Settings, LogOut, Bug, Package } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -8,6 +8,7 @@ const navItems: { to: string; label: string; icon: typeof LayoutDashboard; exact
   { to: "/", label: "Tableau", icon: LayoutDashboard, exact: true },
   { to: "/clients", label: "Clients", icon: Users },
   { to: "/interventions", label: "Interv.", icon: ClipboardList },
+  { to: "/stock", label: "Stock", icon: Package },
   { to: "/factures", label: "Factures", icon: FileText },
   { to: "/contrats", label: "Contrats", icon: FileSignature },
 ];
