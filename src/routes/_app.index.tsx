@@ -13,37 +13,8 @@ export const Route = createFileRoute("/_app/")({
 function Dashboard() {
   const { data: stats, isLoading } = useDashboardStats();
 
-<<<<<<< HEAD
   const caDiff = (stats?.caMonth ?? 0) - (stats?.caPrevMonth ?? 0);
   const caTrend = caDiff > 0 ? "up" : caDiff < 0 ? "down" : "flat";
-=======
-  const cards = [
-    {
-      label: "Interventions du jour",
-      value: stats?.interventionsToday ?? 0,
-      icon: ClipboardList,
-      tone: "bg-primary text-primary-foreground",
-    },
-    {
-      label: "CA du mois",
-      value: formatEUR(stats?.caMonth),
-      icon: Euro,
-      tone: "bg-accent text-accent-foreground",
-    },
-    {
-      label: `Factures impayées (${stats?.unpaidCount ?? 0})`,
-      value: formatEUR(stats?.unpaidTotal),
-      icon: AlertCircle,
-      tone: "bg-destructive text-destructive-foreground",
-    },
-    {
-      label: "Stock bas",
-      value: stats?.lowStockCount ?? 0,
-      icon: PackageX,
-      tone: "bg-destructive text-destructive-foreground",
-    },
-  ];
->>>>>>> dc150051b1677361174da1062a3a2c70954041e2
 
   return (
     <div className="space-y-5">
