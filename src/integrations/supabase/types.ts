@@ -356,6 +356,42 @@ export type Database = {
         }
         Relationships: []
       }
+      stock_products: {
+        Row: {
+          created_at: string
+          id: string
+          nom: string
+          prix_achat_ht: number
+          quantite: number
+          seuil_alerte: number
+          unite: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          nom: string
+          prix_achat_ht?: number
+          quantite?: number
+          seuil_alerte?: number
+          unite?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          nom?: string
+          prix_achat_ht?: number
+          quantite?: number
+          seuil_alerte?: number
+          unite?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
