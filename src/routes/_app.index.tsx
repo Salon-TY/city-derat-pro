@@ -32,6 +32,12 @@ function Dashboard() {
       icon: AlertCircle,
       tone: "bg-destructive text-destructive-foreground",
     },
+    {
+      label: "Stock bas",
+      value: stats?.lowStockCount ?? 0,
+      icon: PackageX,
+      tone: "bg-destructive text-destructive-foreground",
+    },
   ];
 
   return (
