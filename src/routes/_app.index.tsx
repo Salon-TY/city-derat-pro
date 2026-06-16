@@ -2,8 +2,8 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useDashboardStats } from "@/lib/queries";
-import { formatEUR } from "@/lib/schemas";
-import { ClipboardList, Euro, AlertCircle, Plus, UserPlus, FileText, PackageX } from "lucide-react";
+import { formatEUR, formatDateFR } from "@/lib/schemas";
+import { ClipboardList, Euro, AlertCircle, Plus, UserPlus, FileText, PackageX, TrendingUp, TrendingDown, Minus, Phone, AlertTriangle, Package } from "lucide-react";
 
 export const Route = createFileRoute("/_app/")({
   head: () => ({ meta: [{ title: "Tableau de bord — CITY DERAT" }] }),
