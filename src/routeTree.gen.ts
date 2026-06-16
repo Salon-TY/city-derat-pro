@@ -13,6 +13,7 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as AppIndexRouteImport } from './routes/_app.index'
 import { Route as AppParametresRouteImport } from './routes/_app.parametres'
+import { Route as AppStockIndexRouteImport } from './routes/_app.stock.index'
 import { Route as AppInterventionsIndexRouteImport } from './routes/_app.interventions.index'
 import { Route as AppFacturesIndexRouteImport } from './routes/_app.factures.index'
 import { Route as AppContratsIndexRouteImport } from './routes/_app.contrats.index'
@@ -40,6 +41,11 @@ const AppIndexRoute = AppIndexRouteImport.update({
 const AppParametresRoute = AppParametresRouteImport.update({
   id: '/parametres',
   path: '/parametres',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppStockIndexRoute = AppStockIndexRouteImport.update({
+  id: '/stock/',
+  path: '/stock/',
   getParentRoute: () => AppRoute,
 } as any)
 const AppInterventionsIndexRoute = AppInterventionsIndexRouteImport.update({
@@ -101,6 +107,7 @@ export interface FileRoutesByFullPath {
   '/contrats/': typeof AppContratsIndexRoute
   '/factures/': typeof AppFacturesIndexRoute
   '/interventions/': typeof AppInterventionsIndexRoute
+  '/stock/': typeof AppStockIndexRoute
 }
 export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
@@ -115,6 +122,7 @@ export interface FileRoutesByTo {
   '/contrats': typeof AppContratsIndexRoute
   '/factures': typeof AppFacturesIndexRoute
   '/interventions': typeof AppInterventionsIndexRoute
+  '/stock': typeof AppStockIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -131,6 +139,7 @@ export interface FileRoutesById {
   '/_app/contrats/': typeof AppContratsIndexRoute
   '/_app/factures/': typeof AppFacturesIndexRoute
   '/_app/interventions/': typeof AppInterventionsIndexRoute
+  '/_app/stock/': typeof AppStockIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -147,6 +156,7 @@ export interface FileRouteTypes {
     | '/contrats/'
     | '/factures/'
     | '/interventions/'
+    | '/stock/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/auth'
@@ -161,6 +171,7 @@ export interface FileRouteTypes {
     | '/contrats'
     | '/factures'
     | '/interventions'
+    | '/stock'
   id:
     | '__root__'
     | '/_app'
@@ -176,6 +187,7 @@ export interface FileRouteTypes {
     | '/_app/contrats/'
     | '/_app/factures/'
     | '/_app/interventions/'
+    | '/_app/stock/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -211,6 +223,13 @@ declare module '@tanstack/react-router' {
       path: '/parametres'
       fullPath: '/parametres'
       preLoaderRoute: typeof AppParametresRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/stock/': {
+      id: '/_app/stock/'
+      path: '/stock'
+      fullPath: '/stock/'
+      preLoaderRoute: typeof AppStockIndexRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/interventions/': {
@@ -291,6 +310,7 @@ interface AppRouteChildren {
   AppContratsIndexRoute: typeof AppContratsIndexRoute
   AppFacturesIndexRoute: typeof AppFacturesIndexRoute
   AppInterventionsIndexRoute: typeof AppInterventionsIndexRoute
+  AppStockIndexRoute: typeof AppStockIndexRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
@@ -305,6 +325,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppContratsIndexRoute: AppContratsIndexRoute,
   AppFacturesIndexRoute: AppFacturesIndexRoute,
   AppInterventionsIndexRoute: AppInterventionsIndexRoute,
+  AppStockIndexRoute: AppStockIndexRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
