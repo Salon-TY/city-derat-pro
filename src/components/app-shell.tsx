@@ -58,7 +58,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       {/* Bottom nav */}
       <nav className="fixed bottom-0 inset-x-0 z-30 border-t bg-card shadow-[0_-2px_10px_rgba(0,0,0,0.04)]" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
-        <div className="mx-auto grid max-w-3xl grid-cols-5">
+        <div className="mx-auto grid max-w-3xl grid-cols-6">
           {navItems.map((item) => {
             const Icon = item.icon;
             const active = item.exact
