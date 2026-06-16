@@ -13,15 +13,16 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as AppIndexRouteImport } from './routes/_app.index'
 import { Route as AppParametresRouteImport } from './routes/_app.parametres'
+import { Route as AppStockIndexRouteImport } from './routes/_app.stock.index'
 import { Route as AppInterventionsIndexRouteImport } from './routes/_app.interventions.index'
 import { Route as AppFacturesIndexRouteImport } from './routes/_app.factures.index'
 import { Route as AppContratsIndexRouteImport } from './routes/_app.contrats.index'
 import { Route as AppClientsIndexRouteImport } from './routes/_app.clients.index'
 import { Route as AppInterventionsNewRouteImport } from './routes/_app.interventions.new'
 import { Route as AppFacturesNewRouteImport } from './routes/_app.factures.new'
+import { Route as AppFacturesIdRouteImport } from './routes/_app.factures.$id'
 import { Route as AppClientsNewRouteImport } from './routes/_app.clients.new'
 import { Route as AppClientsIdRouteImport } from './routes/_app.clients.$id'
-import { Route as AppFacturesIdRouteImport } from './routes/_app.factures.$id'
 
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
@@ -40,6 +41,11 @@ const AppIndexRoute = AppIndexRouteImport.update({
 const AppParametresRoute = AppParametresRouteImport.update({
   id: '/parametres',
   path: '/parametres',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppStockIndexRoute = AppStockIndexRouteImport.update({
+  id: '/stock/',
+  path: '/stock/',
   getParentRoute: () => AppRoute,
 } as any)
 const AppInterventionsIndexRoute = AppInterventionsIndexRouteImport.update({
@@ -72,6 +78,11 @@ const AppFacturesNewRoute = AppFacturesNewRouteImport.update({
   path: '/factures/new',
   getParentRoute: () => AppRoute,
 } as any)
+const AppFacturesIdRoute = AppFacturesIdRouteImport.update({
+  id: '/factures/$id',
+  path: '/factures/$id',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppClientsNewRoute = AppClientsNewRouteImport.update({
   id: '/clients/new',
   path: '/clients/new',
@@ -80,11 +91,6 @@ const AppClientsNewRoute = AppClientsNewRouteImport.update({
 const AppClientsIdRoute = AppClientsIdRouteImport.update({
   id: '/clients/$id',
   path: '/clients/$id',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppFacturesIdRoute = AppFacturesIdRouteImport.update({
-  id: '/factures/$id',
-  path: '/factures/$id',
   getParentRoute: () => AppRoute,
 } as any)
 
@@ -101,6 +107,7 @@ export interface FileRoutesByFullPath {
   '/contrats/': typeof AppContratsIndexRoute
   '/factures/': typeof AppFacturesIndexRoute
   '/interventions/': typeof AppInterventionsIndexRoute
+  '/stock/': typeof AppStockIndexRoute
 }
 export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
@@ -115,6 +122,7 @@ export interface FileRoutesByTo {
   '/contrats': typeof AppContratsIndexRoute
   '/factures': typeof AppFacturesIndexRoute
   '/interventions': typeof AppInterventionsIndexRoute
+  '/stock': typeof AppStockIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -131,6 +139,7 @@ export interface FileRoutesById {
   '/_app/contrats/': typeof AppContratsIndexRoute
   '/_app/factures/': typeof AppFacturesIndexRoute
   '/_app/interventions/': typeof AppInterventionsIndexRoute
+  '/_app/stock/': typeof AppStockIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -147,6 +156,7 @@ export interface FileRouteTypes {
     | '/contrats/'
     | '/factures/'
     | '/interventions/'
+    | '/stock/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/auth'
@@ -161,6 +171,7 @@ export interface FileRouteTypes {
     | '/contrats'
     | '/factures'
     | '/interventions'
+    | '/stock'
   id:
     | '__root__'
     | '/_app'
@@ -176,6 +187,7 @@ export interface FileRouteTypes {
     | '/_app/contrats/'
     | '/_app/factures/'
     | '/_app/interventions/'
+    | '/_app/stock/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -211,6 +223,13 @@ declare module '@tanstack/react-router' {
       path: '/parametres'
       fullPath: '/parametres'
       preLoaderRoute: typeof AppParametresRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/stock/': {
+      id: '/_app/stock/'
+      path: '/stock'
+      fullPath: '/stock/'
+      preLoaderRoute: typeof AppStockIndexRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/interventions/': {
@@ -255,6 +274,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppFacturesNewRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/factures/$id': {
+      id: '/_app/factures/$id'
+      path: '/factures/$id'
+      fullPath: '/factures/$id'
+      preLoaderRoute: typeof AppFacturesIdRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/clients/new': {
       id: '/_app/clients/new'
       path: '/clients/new'
@@ -267,13 +293,6 @@ declare module '@tanstack/react-router' {
       path: '/clients/$id'
       fullPath: '/clients/$id'
       preLoaderRoute: typeof AppClientsIdRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/factures/$id': {
-      id: '/_app/factures/$id'
-      path: '/factures/$id'
-      fullPath: '/factures/$id'
-      preLoaderRoute: typeof AppFacturesIdRouteImport
       parentRoute: typeof AppRoute
     }
   }
@@ -291,6 +310,7 @@ interface AppRouteChildren {
   AppContratsIndexRoute: typeof AppContratsIndexRoute
   AppFacturesIndexRoute: typeof AppFacturesIndexRoute
   AppInterventionsIndexRoute: typeof AppInterventionsIndexRoute
+  AppStockIndexRoute: typeof AppStockIndexRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
@@ -305,6 +325,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppContratsIndexRoute: AppContratsIndexRoute,
   AppFacturesIndexRoute: AppFacturesIndexRoute,
   AppInterventionsIndexRoute: AppInterventionsIndexRoute,
+  AppStockIndexRoute: AppStockIndexRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)

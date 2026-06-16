@@ -98,6 +98,34 @@ export type Preset = {
   ordre: number;
 };
 
+export type StockProduct = {
+  id: string;
+  user_id: string;
+  nom: string;
+  unite: string;
+  quantite: number;
+  seuil_alerte: number;
+  prix_achat_ht: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export function useStockProducts() {
+  return useQuery({
+    queryKey: ["stock_products"],
+    queryFn: async (): Promise<StockProduct[]> => {
+      const { data, error } = await db.from("stock_products").select("*").order("nom");
+      if (error) throw error;
+      return (data ?? []).map((p: any) => ({
+        ...p,
+        quantite: Number(p.quantite),
+        seuil_alerte: Number(p.seuil_alerte),
+        prix_achat_ht: Number(p.prix_achat_ht),
+      }));
+    },
+  });
+}
+
 export function useClients() {
   return useQuery({
     queryKey: ["clients"],
@@ -225,10 +253,11 @@ export function useDashboardStats() {
       const today = new Date().toISOString().slice(0, 10);
       const monthStart = today.slice(0, 7) + "-01";
 
-      const [todayRes, monthRes, unpaidRes] = await Promise.all([
+      const [todayRes, monthRes, unpaidRes, stockRes] = await Promise.all([
         db.from("interventions").select("*", { count: "exact", head: true }).eq("date", today),
         db.from("invoices").select("total_ttc, date_facture, statut").gte("date_facture", monthStart),
         db.from("invoices").select("id, total_ttc, statut").in("statut", ["envoyee", "retard"]),
+        db.from("stock_products").select("quantite, seuil_alerte"),
       ]);
 
       const ca = (monthRes.data ?? [])
@@ -238,11 +267,16 @@ export function useDashboardStats() {
       const impayes = unpaidRes.data ?? [];
       const impayesTotal = impayes.reduce((sum: number, i: any) => sum + Number(i.total_ttc ?? 0), 0);
 
+      const lowStockCount = (stockRes.data ?? []).filter(
+        (p: any) => Number(p.quantite) <= Number(p.seuil_alerte),
+      ).length;
+
       return {
         interventionsToday: todayRes.count ?? 0,
         caMonth: ca,
         unpaidCount: impayes.length,
         unpaidTotal: impayesTotal,
+        lowStockCount,
       };
     },
   });

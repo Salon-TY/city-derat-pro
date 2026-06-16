@@ -103,6 +103,17 @@ export const settingsSchema = z.object({
 });
 export type SettingsForm = z.infer<typeof settingsSchema>;
 
+export const UNITES_STOCK = ["kg", "L", "boîte", "unité"] as const;
+
+export const stockProductSchema = z.object({
+  nom: z.string().trim().min(1, "Requis").max(200),
+  unite: z.enum(UNITES_STOCK).default("unité"),
+  quantite: z.coerce.number().min(0).max(1000000).default(0),
+  seuil_alerte: z.coerce.number().min(0).max(1000000).default(0),
+  prix_achat_ht: z.coerce.number().min(0).max(1000000).default(0),
+});
+export type StockProductForm = z.infer<typeof stockProductSchema>;
+
 export function formatEUR(n: number | null | undefined): string {
   const v = Number(n ?? 0);
   return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(v);
