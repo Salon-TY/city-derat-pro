@@ -19,9 +19,9 @@ import { Route as AppContratsIndexRouteImport } from './routes/_app.contrats.ind
 import { Route as AppClientsIndexRouteImport } from './routes/_app.clients.index'
 import { Route as AppInterventionsNewRouteImport } from './routes/_app.interventions.new'
 import { Route as AppFacturesNewRouteImport } from './routes/_app.factures.new'
+import { Route as AppFacturesIdRouteImport } from './routes/_app.factures.$id'
 import { Route as AppClientsNewRouteImport } from './routes/_app.clients.new'
 import { Route as AppClientsIdRouteImport } from './routes/_app.clients.$id'
-import { Route as AppFacturesIdRouteImport } from './routes/_app.factures.$id'
 
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
@@ -72,6 +72,11 @@ const AppFacturesNewRoute = AppFacturesNewRouteImport.update({
   path: '/factures/new',
   getParentRoute: () => AppRoute,
 } as any)
+const AppFacturesIdRoute = AppFacturesIdRouteImport.update({
+  id: '/factures/$id',
+  path: '/factures/$id',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppClientsNewRoute = AppClientsNewRouteImport.update({
   id: '/clients/new',
   path: '/clients/new',
@@ -80,11 +85,6 @@ const AppClientsNewRoute = AppClientsNewRouteImport.update({
 const AppClientsIdRoute = AppClientsIdRouteImport.update({
   id: '/clients/$id',
   path: '/clients/$id',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppFacturesIdRoute = AppFacturesIdRouteImport.update({
-  id: '/factures/$id',
-  path: '/factures/$id',
   getParentRoute: () => AppRoute,
 } as any)
 
@@ -255,6 +255,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppFacturesNewRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/factures/$id': {
+      id: '/_app/factures/$id'
+      path: '/factures/$id'
+      fullPath: '/factures/$id'
+      preLoaderRoute: typeof AppFacturesIdRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/clients/new': {
       id: '/_app/clients/new'
       path: '/clients/new'
@@ -267,13 +274,6 @@ declare module '@tanstack/react-router' {
       path: '/clients/$id'
       fullPath: '/clients/$id'
       preLoaderRoute: typeof AppClientsIdRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/factures/$id': {
-      id: '/_app/factures/$id'
-      path: '/factures/$id'
-      fullPath: '/factures/$id'
-      preLoaderRoute: typeof AppFacturesIdRouteImport
       parentRoute: typeof AppRoute
     }
   }
