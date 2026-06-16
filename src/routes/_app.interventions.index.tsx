@@ -66,7 +66,7 @@ function InterventionsPage() {
         <div className="inline-flex rounded-md border bg-card p-0.5">
           <button
             type="button"
-            onClick={() => navigate({ search: (p) => ({ ...p, view: "calendar" }) })}
+            onClick={() => navigate({ search: (p: SearchParams) => ({ ...p, view: "calendar" }) })}
             className={cn(
               "inline-flex items-center gap-1.5 rounded px-3 py-1.5 text-sm font-medium transition-colors",
               view === "calendar" ? "bg-primary text-primary-foreground" : "text-muted-foreground"
@@ -76,7 +76,7 @@ function InterventionsPage() {
           </button>
           <button
             type="button"
-            onClick={() => navigate({ search: (p) => ({ ...p, view: "list" }) })}
+            onClick={() => navigate({ search: (p: SearchParams) => ({ ...p, view: "list" }) })}
             className={cn(
               "inline-flex items-center gap-1.5 rounded px-3 py-1.5 text-sm font-medium transition-colors",
               view === "list" ? "bg-primary text-primary-foreground" : "text-muted-foreground"
@@ -92,7 +92,7 @@ function InterventionsPage() {
           <button
             key={f.value}
             type="button"
-            onClick={() => navigate({ search: (p) => ({ ...p, statut: f.value }) })}
+            onClick={() => navigate({ search: (p: SearchParams) => ({ ...p, statut: f.value }) })}
             className={cn(
               "rounded-full px-3 py-1 text-xs font-medium border transition-colors",
               statut === f.value
