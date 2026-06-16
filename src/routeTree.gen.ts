@@ -21,6 +21,7 @@ import { Route as AppInterventionsNewRouteImport } from './routes/_app.intervent
 import { Route as AppFacturesNewRouteImport } from './routes/_app.factures.new'
 import { Route as AppClientsNewRouteImport } from './routes/_app.clients.new'
 import { Route as AppClientsIdRouteImport } from './routes/_app.clients.$id'
+import { Route as AppFacturesIdRouteImport } from './routes/_app.factures.$id'
 
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
@@ -81,6 +82,11 @@ const AppClientsIdRoute = AppClientsIdRouteImport.update({
   path: '/clients/$id',
   getParentRoute: () => AppRoute,
 } as any)
+const AppFacturesIdRoute = AppFacturesIdRouteImport.update({
+  id: '/factures/$id',
+  path: '/factures/$id',
+  getParentRoute: () => AppRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
@@ -88,6 +94,7 @@ export interface FileRoutesByFullPath {
   '/parametres': typeof AppParametresRoute
   '/clients/$id': typeof AppClientsIdRoute
   '/clients/new': typeof AppClientsNewRoute
+  '/factures/$id': typeof AppFacturesIdRoute
   '/factures/new': typeof AppFacturesNewRoute
   '/interventions/new': typeof AppInterventionsNewRoute
   '/clients/': typeof AppClientsIndexRoute
@@ -101,6 +108,7 @@ export interface FileRoutesByTo {
   '/': typeof AppIndexRoute
   '/clients/$id': typeof AppClientsIdRoute
   '/clients/new': typeof AppClientsNewRoute
+  '/factures/$id': typeof AppFacturesIdRoute
   '/factures/new': typeof AppFacturesNewRoute
   '/interventions/new': typeof AppInterventionsNewRoute
   '/clients': typeof AppClientsIndexRoute
@@ -116,6 +124,7 @@ export interface FileRoutesById {
   '/_app/': typeof AppIndexRoute
   '/_app/clients/$id': typeof AppClientsIdRoute
   '/_app/clients/new': typeof AppClientsNewRoute
+  '/_app/factures/$id': typeof AppFacturesIdRoute
   '/_app/factures/new': typeof AppFacturesNewRoute
   '/_app/interventions/new': typeof AppInterventionsNewRoute
   '/_app/clients/': typeof AppClientsIndexRoute
@@ -131,6 +140,7 @@ export interface FileRouteTypes {
     | '/parametres'
     | '/clients/$id'
     | '/clients/new'
+    | '/factures/$id'
     | '/factures/new'
     | '/interventions/new'
     | '/clients/'
@@ -144,6 +154,7 @@ export interface FileRouteTypes {
     | '/'
     | '/clients/$id'
     | '/clients/new'
+    | '/factures/$id'
     | '/factures/new'
     | '/interventions/new'
     | '/clients'
@@ -158,6 +169,7 @@ export interface FileRouteTypes {
     | '/_app/'
     | '/_app/clients/$id'
     | '/_app/clients/new'
+    | '/_app/factures/$id'
     | '/_app/factures/new'
     | '/_app/interventions/new'
     | '/_app/clients/'
@@ -257,6 +269,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppClientsIdRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/factures/$id': {
+      id: '/_app/factures/$id'
+      path: '/factures/$id'
+      fullPath: '/factures/$id'
+      preLoaderRoute: typeof AppFacturesIdRouteImport
+      parentRoute: typeof AppRoute
+    }
   }
 }
 
@@ -265,6 +284,7 @@ interface AppRouteChildren {
   AppIndexRoute: typeof AppIndexRoute
   AppClientsIdRoute: typeof AppClientsIdRoute
   AppClientsNewRoute: typeof AppClientsNewRoute
+  AppFacturesIdRoute: typeof AppFacturesIdRoute
   AppFacturesNewRoute: typeof AppFacturesNewRoute
   AppInterventionsNewRoute: typeof AppInterventionsNewRoute
   AppClientsIndexRoute: typeof AppClientsIndexRoute
@@ -278,6 +298,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppIndexRoute: AppIndexRoute,
   AppClientsIdRoute: AppClientsIdRoute,
   AppClientsNewRoute: AppClientsNewRoute,
+  AppFacturesIdRoute: AppFacturesIdRoute,
   AppFacturesNewRoute: AppFacturesNewRoute,
   AppInterventionsNewRoute: AppInterventionsNewRoute,
   AppClientsIndexRoute: AppClientsIndexRoute,
