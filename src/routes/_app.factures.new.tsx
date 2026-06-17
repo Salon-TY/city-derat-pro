@@ -1,4 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { zodValidator } from "@tanstack/zod-adapter";
+import { z } from "zod";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { invoiceSchema, type InvoiceForm, formatEUR, STATUTS_FACTURE } from "@/lib/schemas";
@@ -17,8 +19,14 @@ import { Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
+const searchSchema = z.object({
+  client_id: z.string().optional(),
+  adresse_site: z.string().optional(),
+});
+
 export const Route = createFileRoute("/_app/factures/new")({
   head: () => ({ meta: [{ title: "Nouvelle facture — CITY DERAT" }] }),
+  validateSearch: zodValidator(searchSchema),
   component: NouvelleFacture,
 });
 
@@ -33,6 +41,7 @@ const PRESETS_DEFAULT = [
 function NouvelleFacture() {
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const { client_id: prefilledClientId, adresse_site: prefilledAdresse } = Route.useSearch();
   const { data: clients = [], refetch: refetchClients } = useClients();
   const { data: settings } = useSettings();
   const { data: presets = [] } = usePresets();
@@ -48,10 +57,10 @@ function NouvelleFacture() {
   const form = useForm<InvoiceForm>({
     resolver: zodResolver(invoiceSchema) as any,
     defaultValues: {
-      client_id: "",
+      client_id: prefilledClientId ?? "",
       date_facture: today,
       echeance: "",
-      adresse_site: "",
+      adresse_site: prefilledAdresse ?? "",
       statut: "brouillon",
       tva_taux: 20,
       notes: "",

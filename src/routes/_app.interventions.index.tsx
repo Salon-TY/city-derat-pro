@@ -254,31 +254,33 @@ function ListView({ interventions }: { interventions: any[] }) {
 
 function InterventionCard({ item }: { item: any }) {
   return (
-    <Card>
-      <CardContent className="p-4 space-y-1.5">
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
-            <div className="font-semibold truncate">{item.client?.raison_sociale ?? "Client supprimé"}</div>
-            <div className="text-xs text-muted-foreground">
-              {formatDateFR(item.date)} · {item.type_intervention}
+    <Link to="/interventions/$id" params={{ id: item.id }}>
+      <Card className="hover:border-primary/40 transition-colors cursor-pointer">
+        <CardContent className="p-4 space-y-1.5">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <div className="font-semibold truncate">{item.client?.raison_sociale ?? "Client supprimé"}</div>
+              <div className="text-xs text-muted-foreground">
+                {formatDateFR(item.date)} · {item.type_intervention}
+              </div>
             </div>
+            <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-medium uppercase", STATUT_COLORS[item.statut] ?? "bg-muted")}>
+              {statutLabel(item.statut)}
+            </span>
           </div>
-          <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-medium uppercase", STATUT_COLORS[item.statut] ?? "bg-muted")}>
-            {statutLabel(item.statut)}
-          </span>
-        </div>
-        {item.adresse_site && (
-          <div className="flex items-start gap-1 text-xs text-muted-foreground">
-            <MapPin className="h-3 w-3 mt-0.5 shrink-0" />
-            <span className="truncate">{item.adresse_site}</span>
-          </div>
-        )}
-        {item.date_prochain_passage && (
-          <div className="text-xs text-accent font-medium">
-            Prochain passage : {formatDateFR(item.date_prochain_passage)}
-          </div>
-        )}
-      </CardContent>
-    </Card>
+          {item.adresse_site && (
+            <div className="flex items-start gap-1 text-xs text-muted-foreground">
+              <MapPin className="h-3 w-3 mt-0.5 shrink-0" />
+              <span className="truncate">{item.adresse_site}</span>
+            </div>
+          )}
+          {item.date_prochain_passage && (
+            <div className="text-xs text-accent font-medium">
+              Prochain passage : {formatDateFR(item.date_prochain_passage)}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </Link>
   );
 }
