@@ -12,9 +12,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Trash2, ArrowLeft } from "lucide-react";
+import { Plus, Trash2, ArrowLeft, UserPlus, X } from "lucide-react";
 import { Link } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_app/factures/new")({
@@ -33,9 +33,15 @@ const PRESETS_DEFAULT = [
 function NouvelleFacture() {
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const { data: clients = [] } = useClients();
+  const { data: clients = [], refetch: refetchClients } = useClients();
   const { data: settings } = useSettings();
   const { data: presets = [] } = usePresets();
+
+  const [showNewClient, setShowNewClient] = useState(false);
+  const [newClientName, setNewClientName] = useState("");
+  const [newClientTel, setNewClientTel] = useState("");
+  const [newClientAdresse, setNewClientAdresse] = useState("");
+  const [creatingClient, setCreatingClient] = useState(false);
 
   const today = new Date().toISOString().slice(0, 10);
 
@@ -56,6 +62,7 @@ function NouvelleFacture() {
   const { fields, append, remove } = useFieldArray({ control: form.control, name: "lines" });
 
   const clientId = form.watch("client_id");
+  const dateFacture = form.watch("date_facture");
   const lines = form.watch("lines");
   const tvaTaux = form.watch("tva_taux") ?? 20;
 
@@ -70,6 +77,37 @@ function NouvelleFacture() {
       form.setValue("adresse_site", c.adresse_site);
     }
   }, [clientId, clients]);
+
+  useEffect(() => {
+    if (!dateFacture) return;
+    const d = new Date(dateFacture);
+    if (isNaN(d.getTime())) return;
+    d.setDate(d.getDate() + 30);
+    form.setValue("echeance", d.toISOString().slice(0, 10));
+  }, [dateFacture]);
+
+  async function createClient() {
+    if (!newClientName.trim()) { toast.error("Le nom est requis"); return; }
+    setCreatingClient(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    const { data, error } = await db.from("clients").insert({
+      user_id: user?.id,
+      raison_sociale: newClientName.trim(),
+      telephone: newClientTel.trim(),
+      adresse_site: newClientAdresse.trim(),
+    }).select().single();
+    setCreatingClient(false);
+    if (error) { toast.error(error.message); return; }
+    await refetchClients();
+    qc.invalidateQueries({ queryKey: ["clients"] });
+    form.setValue("client_id", data.id, { shouldValidate: true });
+    if (newClientAdresse) form.setValue("adresse_site", newClientAdresse);
+    setShowNewClient(false);
+    setNewClientName("");
+    setNewClientTel("");
+    setNewClientAdresse("");
+    toast.success(`Client "${data.raison_sociale}" créé`);
+  }
 
   async function onSubmit(values: InvoiceForm) {
     const { data: { user } } = await supabase.auth.getUser();
@@ -146,12 +184,68 @@ function NouvelleFacture() {
         <Card><CardContent className="p-4 space-y-3">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Client</h2>
           <Field label="Client *" error={(form.formState.errors as any).client_id?.message}>
-            <Select value={form.watch("client_id")} onValueChange={(v) => form.setValue("client_id", v, { shouldValidate: true })}>
-              <SelectTrigger><SelectValue placeholder="Sélectionner un client…" /></SelectTrigger>
-              <SelectContent>
-                {clients.map((c) => <SelectItem key={c.id} value={c.id}>{c.raison_sociale}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <div className="space-y-2">
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <Select
+                    value={form.watch("client_id")}
+                    onValueChange={(v) => { form.setValue("client_id", v, { shouldValidate: true }); setShowNewClient(false); }}
+                  >
+                    <SelectTrigger><SelectValue placeholder="Sélectionner un client…" /></SelectTrigger>
+                    <SelectContent>
+                      {clients.map((c) => <SelectItem key={c.id} value={c.id}>{c.raison_sociale}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="shrink-0 px-3"
+                  onClick={() => setShowNewClient((v) => !v)}
+                >
+                  {showNewClient ? <X className="h-4 w-4" /> : <UserPlus className="h-4 w-4" />}
+                </Button>
+              </div>
+              {showNewClient && (
+                <Card className="border-primary/30 bg-primary/5">
+                  <CardContent className="p-3 space-y-2">
+                    <p className="text-xs font-semibold text-primary uppercase tracking-wide flex items-center gap-1">
+                      <Plus className="h-3 w-3" /> Nouveau client
+                    </p>
+                    <Input
+                      placeholder="Nom / Raison sociale *"
+                      value={newClientName}
+                      onChange={(e) => setNewClientName(e.target.value)}
+                      className="h-8 text-sm"
+                    />
+                    <Input
+                      placeholder="Téléphone"
+                      type="tel"
+                      value={newClientTel}
+                      onChange={(e) => setNewClientTel(e.target.value)}
+                      className="h-8 text-sm"
+                    />
+                    <Textarea
+                      placeholder="Adresse du site"
+                      rows={2}
+                      value={newClientAdresse}
+                      onChange={(e) => setNewClientAdresse(e.target.value)}
+                      className="text-sm"
+                    />
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="w-full h-8"
+                      onClick={createClient}
+                      disabled={creatingClient}
+                    >
+                      {creatingClient ? "Création…" : "Créer et sélectionner"}
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
           </Field>
           <Field label="Adresse du site">
             <Textarea rows={2} {...form.register("adresse_site")} />
