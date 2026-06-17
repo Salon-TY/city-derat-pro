@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate, Link, useSearch } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
-import { InterventionForm } from "@/components/intervention-form";
+import { InterventionForm, type StockUsageItem } from "@/components/intervention-form";
 import { db } from "@/lib/db";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -21,7 +21,7 @@ function NewIntervention() {
   const qc = useQueryClient();
   const search = useSearch({ from: "/_app/interventions/new" });
 
-  async function handleSubmit(values: IFType) {
+  async function handleSubmit(values: IFType, stockItems: StockUsageItem[]) {
     const { data: userRes } = await supabase.auth.getUser();
     const payload = {
       ...values,
@@ -30,6 +30,19 @@ function NewIntervention() {
     };
     const { error } = await db.from("interventions").insert(payload);
     if (error) { toast.error(error.message); return; }
+
+    // Déduction automatique du stock
+    for (const item of stockItems) {
+      const { data: current } = await db.from("stock_products").select("quantite").eq("id", item.product_id).maybeSingle();
+      if (current) {
+        const next = Math.max(0, Number(current.quantite) - item.quantite);
+        await db.from("stock_products").update({ quantite: next }).eq("id", item.product_id);
+      }
+    }
+    if (stockItems.length > 0) {
+      qc.invalidateQueries({ queryKey: ["stock_products"] });
+    }
+
     qc.invalidateQueries({ queryKey: ["interventions"] });
     qc.invalidateQueries({ queryKey: ["dashboard"] });
     toast.success("Intervention enregistrée");

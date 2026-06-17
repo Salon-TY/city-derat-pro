@@ -8,8 +8,15 @@ import {
   TYPES_INTERVENTION,
   STATUTS_INTERVENTION,
 } from "@/lib/schemas";
-import { useClients } from "@/lib/queries";
+import { useClients, useStockProducts } from "@/lib/queries";
 import { db } from "@/lib/db";
+
+export type StockUsageItem = {
+  product_id: string;
+  nom: string;
+  quantite: number;
+  unite: string;
+};
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -48,10 +55,11 @@ export function InterventionForm({
   submitLabel = "Enregistrer l'intervention",
 }: {
   defaultValues?: Partial<IFType>;
-  onSubmit: (v: IFType) => Promise<void> | void;
+  onSubmit: (v: IFType, stockItems: StockUsageItem[]) => Promise<void> | void;
   submitLabel?: string;
 }) {
   const { data: clients = [], refetch: refetchClients } = useClients();
+  const { data: stockProducts = [] } = useStockProducts();
   const qc = useQueryClient();
   const [showNewClient, setShowNewClient] = useState(false);
   const [newClientName, setNewClientName] = useState("");
@@ -59,6 +67,9 @@ export function InterventionForm({
   const [newClientAdresse, setNewClientAdresse] = useState("");
   const [creatingClient, setCreatingClient] = useState(false);
   const [rapportChecks, setRapportChecks] = useState<string[]>([]);
+  const [stockUsage, setStockUsage] = useState<StockUsageItem[]>([]);
+  const [pickedProductId, setPickedProductId] = useState("");
+  const [pickedQty, setPickedQty] = useState<number>(1);
 
   const form = useForm<IFType>({
     resolver: zodResolver(interventionSchema) as any,
@@ -133,8 +144,36 @@ export function InterventionForm({
     );
   }
 
+  function addStockItem() {
+    if (!pickedProductId) return;
+    const product = stockProducts.find((p) => p.id === pickedProductId);
+    if (!product) return;
+    const qty = Number(pickedQty);
+    if (!qty || qty <= 0) { toast.error("Quantité invalide"); return; }
+    setStockUsage((prev) => {
+      const existing = prev.find((i) => i.product_id === pickedProductId);
+      if (existing) {
+        return prev.map((i) => i.product_id === pickedProductId ? { ...i, quantite: i.quantite + qty } : i);
+      }
+      return [...prev, { product_id: product.id, nom: product.nom, quantite: qty, unite: product.unite }];
+    });
+    setPickedProductId("");
+    setPickedQty(1);
+  }
+
+  function removeStockItem(product_id: string) {
+    setStockUsage((prev) => prev.filter((i) => i.product_id !== product_id));
+  }
+
+  function handleSubmitWithStock(values: IFType) {
+    const produitsSerialized = stockUsage.length > 0
+      ? stockUsage.map((i) => `${i.nom} x${i.quantite} ${i.unite}`).join(", ")
+      : values.produits;
+    return onSubmit({ ...values, produits: produitsSerialized, quantite: "" }, stockUsage);
+  }
+
   return (
-    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
+    <form onSubmit={form.handleSubmit(handleSubmitWithStock)} className="space-y-3">
 
       {/* Sélection client + création rapide */}
       <Field label="Client *" error={form.formState.errors.client_id?.message}>
@@ -265,13 +304,62 @@ export function InterventionForm({
         </Field>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <Field label="Produits utilisés">
+      <div className="space-y-1.5">
+        <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Produits utilisés</Label>
+        {stockProducts.length === 0 ? (
           <Input {...form.register("produits")} placeholder="Ex. Brodifacoum…" />
-        </Field>
-        <Field label="Quantité">
-          <Input {...form.register("quantite")} placeholder="Ex. 4 boîtes" />
-        </Field>
+        ) : (
+          <Card className="border-border">
+            <CardContent className="p-3 space-y-2">
+              {/* Sélecteur */}
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <Select value={pickedProductId} onValueChange={setPickedProductId}>
+                    <SelectTrigger className="h-8 text-sm">
+                      <SelectValue placeholder="Choisir un produit…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {stockProducts.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          {p.nom} <span className="text-muted-foreground">({p.quantite} {p.unite} dispo)</span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Input
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  value={pickedQty}
+                  onChange={(e) => setPickedQty(Number(e.target.value))}
+                  className="h-8 w-20 text-sm"
+                />
+                <Button type="button" size="sm" className="h-8 px-3 shrink-0" onClick={addStockItem}>
+                  <Plus className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+
+              {/* Liste sélectionnée */}
+              {stockUsage.length > 0 && (
+                <div className="space-y-1">
+                  {stockUsage.map((item) => (
+                    <div key={item.product_id} className="flex items-center justify-between rounded-md bg-muted/40 px-2 py-1 text-sm">
+                      <span>{item.nom} <span className="text-muted-foreground font-medium">× {item.quantite} {item.unite}</span></span>
+                      <button type="button" onClick={() => removeStockItem(item.product_id)} className="text-destructive hover:text-destructive/80 ml-2">
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {stockUsage.length === 0 && (
+                <p className="text-xs text-muted-foreground">Aucun produit sélectionné</p>
+              )}
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* Cases à cocher rapport rapide */}
