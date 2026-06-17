@@ -3,7 +3,7 @@ import { useInvoice, useSettings } from "@/lib/queries";
 import { formatEUR, formatDateFR, STATUTS_FACTURE } from "@/lib/schemas";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Download, Trash2 } from "lucide-react";
+import { ArrowLeft, Download, Trash2, Mail } from "lucide-react";
 import { db } from "@/lib/db";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -51,6 +51,29 @@ function FactureDetail() {
     qc.invalidateQueries({ queryKey: ["dashboard"] });
     toast.success("Facture supprimée");
     navigate({ to: "/factures" });
+  }
+
+  function sendEmail() {
+    if (!invoice) return;
+    const s = settings;
+    const nomSociete = s?.nom ?? "CITY DERAT";
+    const email = invoice.client?.email ?? "";
+    const objet = `Facture N°${invoice.numero} - ${nomSociete}`;
+    const corps = [
+      "Bonjour,",
+      "",
+      `Veuillez trouver ci-joint la facture N°${invoice.numero} d'un montant de ${formatEUR(invoice.total_ttc)}.`,
+      "",
+      `Cordialement,`,
+      nomSociete,
+    ].join("\n");
+
+    // Ouvre d'abord le PDF dans un nouvel onglet
+    exportPDF();
+
+    // Puis ouvre le client mail
+    const mailto = `mailto:${email}?subject=${encodeURIComponent(objet)}&body=${encodeURIComponent(corps)}`;
+    setTimeout(() => { window.location.href = mailto; }, 600);
   }
 
   function exportPDF() {
@@ -220,6 +243,15 @@ function FactureDetail() {
       <Button onClick={exportPDF} className="w-full bg-accent hover:bg-accent/90 text-accent-foreground">
         <Download className="mr-2 h-4 w-4" /> Télécharger / Imprimer PDF
       </Button>
+
+      <div className="space-y-1.5">
+        <Button onClick={sendEmail} variant="outline" className="w-full">
+          <Mail className="mr-2 h-4 w-4" /> Envoyer par email
+        </Button>
+        <p className="text-[11px] text-muted-foreground text-center leading-tight px-2">
+          Le PDF s'ouvre dans un nouvel onglet — téléchargez-le puis joignez-le manuellement à votre email.
+        </p>
+      </div>
     </div>
   );
 }
