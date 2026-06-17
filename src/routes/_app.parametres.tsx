@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { settingsSchema, type SettingsForm } from "@/lib/schemas";
@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
+import { BarChart2, ChevronRight } from "lucide-react";
 
 export const Route = createFileRoute("/_app/parametres")({
   head: () => ({ meta: [{ title: "Paramètres — CITY DERAT" }] }),
@@ -51,6 +52,24 @@ function ParametresPage() {
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-bold tracking-tight">Paramètres</h1>
+
+      <Link to="/stats">
+        <Card className="hover:border-primary/40 transition-colors cursor-pointer">
+          <CardContent className="p-4 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-accent/10 text-accent">
+                <BarChart2 className="h-5 w-5" />
+              </div>
+              <div>
+                <div className="font-semibold text-sm">Statistiques mensuelles</div>
+                <div className="text-xs text-muted-foreground">CA, interventions, top clients</div>
+              </div>
+            </div>
+            <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+          </CardContent>
+        </Card>
+      </Link>
+
       <Card><CardContent className="p-4">
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Société</h2>

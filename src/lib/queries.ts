@@ -278,8 +278,11 @@ export function useDashboardStats() {
       const impayesTotal = impayes.reduce((sum: number, i: any) => sum + Number(i.total_ttc ?? 0), 0);
 
       const now = new Date();
+      const in7Days = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
       const in30Days = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-      const expiringContracts = (contractsRes.data ?? []).filter((c: any) => c.date_fin <= in30Days && c.date_fin >= today);
+      const expiringContracts = (contractsRes.data ?? [])
+        .filter((c: any) => c.date_fin <= in30Days && c.date_fin >= today)
+        .map((c: any) => ({ ...c, urgent: c.date_fin <= in7Days }));
 
       const stockAlerts = (stockRes.data ?? []).filter((p: any) => Number(p.quantite) <= Number(p.seuil_alerte));
 
@@ -293,6 +296,74 @@ export function useDashboardStats() {
         expiringContracts,
         stockAlerts,
         lowStockCount: stockAlerts.length,
+      };
+    },
+  });
+}
+
+export function useMonthlyStats() {
+  return useQuery({
+    queryKey: ["monthly_stats"],
+    queryFn: async () => {
+      const now = new Date();
+      const today = now.toISOString().slice(0, 10);
+      const monthStart = today.slice(0, 7) + "-01";
+      const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().slice(0, 10);
+      const prevMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().slice(0, 10);
+      const twelveMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 11, 1).toISOString().slice(0, 10);
+
+      const [invoicesMonth, invoicesPrev, invoices12m, interventionsMonth, interventionsPrev, clientsMonth] = await Promise.all([
+        db.from("invoices").select("total_ttc, statut").gte("date_facture", monthStart),
+        db.from("invoices").select("total_ttc, statut").gte("date_facture", prevMonthStart).lte("date_facture", prevMonthEnd),
+        db.from("invoices").select("total_ttc, statut, client_id, date_facture, client:clients(raison_sociale)").gte("date_facture", twelveMonthsAgo),
+        db.from("interventions").select("id, statut").gte("date", monthStart).lte("date", today).eq("statut", "realisee"),
+        db.from("interventions").select("id, statut").gte("date", prevMonthStart).lte("date", prevMonthEnd).eq("statut", "realisee"),
+        db.from("clients").select("id", { count: "exact", head: true }).gte("created_at", monthStart),
+      ]);
+
+      const PAID = ["payee", "envoyee", "retard"];
+      const caMonth = (invoicesMonth.data ?? []).filter((i: any) => PAID.includes(i.statut)).reduce((s: number, i: any) => s + Number(i.total_ttc ?? 0), 0);
+      const caPrev = (invoicesPrev.data ?? []).filter((i: any) => PAID.includes(i.statut)).reduce((s: number, i: any) => s + Number(i.total_ttc ?? 0), 0);
+      const caEvolution = caPrev === 0 ? null : ((caMonth - caPrev) / caPrev) * 100;
+
+      const intMonth = (interventionsMonth.data ?? []).length;
+      const intPrev = (interventionsPrev.data ?? []).length;
+
+      // Top 5 clients by CA last 12 months
+      const clientMap = new Map<string, { nom: string; ca: number }>();
+      for (const inv of (invoices12m.data ?? [])) {
+        if (!PAID.includes(inv.statut)) continue;
+        const id = inv.client_id;
+        const nom = (inv.client as any)?.raison_sociale ?? "—";
+        const prev = clientMap.get(id) ?? { nom, ca: 0 };
+        clientMap.set(id, { nom, ca: prev.ca + Number(inv.total_ttc ?? 0) });
+      }
+      const top5 = [...clientMap.entries()]
+        .sort((a, b) => b[1].ca - a[1].ca)
+        .slice(0, 5)
+        .map(([id, v]) => ({ id, nom: v.nom, ca: v.ca }));
+
+      // CA des 6 derniers mois (barres)
+      const months6: { label: string; ca: number }[] = [];
+      for (let i = 5; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const key = d.toISOString().slice(0, 7);
+        const label = d.toLocaleDateString("fr-FR", { month: "short", year: "2-digit" });
+        const ca = (invoices12m.data ?? [])
+          .filter((inv: any) => PAID.includes(inv.statut) && inv.date_facture?.startsWith(key))
+          .reduce((s: number, inv: any) => s + Number(inv.total_ttc ?? 0), 0);
+        months6.push({ label, ca });
+      }
+
+      return {
+        caMonth,
+        caPrev,
+        caEvolution,
+        intMonth,
+        intPrev,
+        top5,
+        newClients: clientsMonth.count ?? 0,
+        months6,
       };
     },
   });

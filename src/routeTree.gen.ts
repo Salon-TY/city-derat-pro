@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as AppIndexRouteImport } from './routes/_app.index'
+import { Route as AppStatsRouteImport } from './routes/_app.stats'
 import { Route as AppParametresRouteImport } from './routes/_app.parametres'
 import { Route as AppStockIndexRouteImport } from './routes/_app.stock.index'
 import { Route as AppInterventionsIndexRouteImport } from './routes/_app.interventions.index'
@@ -37,6 +38,11 @@ const AppRoute = AppRouteImport.update({
 const AppIndexRoute = AppIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppStatsRoute = AppStatsRouteImport.update({
+  id: '/stats',
+  path: '/stats',
   getParentRoute: () => AppRoute,
 } as any)
 const AppParametresRoute = AppParametresRouteImport.update({
@@ -104,6 +110,7 @@ export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
   '/auth': typeof AuthRoute
   '/parametres': typeof AppParametresRoute
+  '/stats': typeof AppStatsRoute
   '/clients/$id': typeof AppClientsIdRoute
   '/clients/new': typeof AppClientsNewRoute
   '/factures/$id': typeof AppFacturesIdRoute
@@ -119,6 +126,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/parametres': typeof AppParametresRoute
+  '/stats': typeof AppStatsRoute
   '/': typeof AppIndexRoute
   '/clients/$id': typeof AppClientsIdRoute
   '/clients/new': typeof AppClientsNewRoute
@@ -137,6 +145,7 @@ export interface FileRoutesById {
   '/_app': typeof AppRouteWithChildren
   '/auth': typeof AuthRoute
   '/_app/parametres': typeof AppParametresRoute
+  '/_app/stats': typeof AppStatsRoute
   '/_app/': typeof AppIndexRoute
   '/_app/clients/$id': typeof AppClientsIdRoute
   '/_app/clients/new': typeof AppClientsNewRoute
@@ -156,6 +165,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/parametres'
+    | '/stats'
     | '/clients/$id'
     | '/clients/new'
     | '/factures/$id'
@@ -171,6 +181,7 @@ export interface FileRouteTypes {
   to:
     | '/auth'
     | '/parametres'
+    | '/stats'
     | '/'
     | '/clients/$id'
     | '/clients/new'
@@ -188,6 +199,7 @@ export interface FileRouteTypes {
     | '/_app'
     | '/auth'
     | '/_app/parametres'
+    | '/_app/stats'
     | '/_app/'
     | '/_app/clients/$id'
     | '/_app/clients/new'
@@ -228,6 +240,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof AppIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/stats': {
+      id: '/_app/stats'
+      path: '/stats'
+      fullPath: '/stats'
+      preLoaderRoute: typeof AppStatsRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/parametres': {
@@ -319,6 +338,7 @@ declare module '@tanstack/react-router' {
 
 interface AppRouteChildren {
   AppParametresRoute: typeof AppParametresRoute
+  AppStatsRoute: typeof AppStatsRoute
   AppIndexRoute: typeof AppIndexRoute
   AppClientsIdRoute: typeof AppClientsIdRoute
   AppClientsNewRoute: typeof AppClientsNewRoute
@@ -335,6 +355,7 @@ interface AppRouteChildren {
 
 const AppRouteChildren: AppRouteChildren = {
   AppParametresRoute: AppParametresRoute,
+  AppStatsRoute: AppStatsRoute,
   AppIndexRoute: AppIndexRoute,
   AppClientsIdRoute: AppClientsIdRoute,
   AppClientsNewRoute: AppClientsNewRoute,

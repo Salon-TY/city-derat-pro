@@ -112,17 +112,38 @@ function Dashboard() {
         </section>
       )}
 
-      {/* Alertes contrats */}
-      {!isLoading && (stats?.expiringContracts?.length ?? 0) > 0 && (
+      {/* Alertes contrats urgents (< 7 jours) */}
+      {!isLoading && (stats?.expiringContracts?.filter((c: any) => c.urgent).length ?? 0) > 0 && (
+        <Card className="border-destructive/50 bg-destructive/5">
+          <CardContent className="p-3 flex items-start gap-2">
+            <AlertTriangle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
+            <div className="text-sm">
+              <span className="font-semibold text-destructive">
+                {stats!.expiringContracts.filter((c: any) => c.urgent).length} contrat{stats!.expiringContracts.filter((c: any) => c.urgent).length > 1 ? "s" : ""} expirent dans moins de 7 jours !
+              </span>
+              <ul className="mt-1 space-y-0.5">
+                {stats!.expiringContracts.filter((c: any) => c.urgent).map((c: any) => (
+                  <li key={c.id} className="text-xs text-destructive/80">
+                    {c.client?.raison_sociale ?? "—"} — expire le {formatDateFR(c.date_fin)}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Alertes contrats bientôt (7–30 jours) */}
+      {!isLoading && (stats?.expiringContracts?.filter((c: any) => !c.urgent).length ?? 0) > 0 && (
         <Card className="border-orange-300 bg-orange-50 dark:bg-orange-950/20">
           <CardContent className="p-3 flex items-start gap-2">
             <AlertTriangle className="h-4 w-4 text-orange-500 mt-0.5 shrink-0" />
             <div className="text-sm">
               <span className="font-semibold text-orange-700 dark:text-orange-400">
-                {stats!.expiringContracts.length} contrat{stats!.expiringContracts.length > 1 ? "s" : ""} expirant bientôt
+                {stats!.expiringContracts.filter((c: any) => !c.urgent).length} contrat{stats!.expiringContracts.filter((c: any) => !c.urgent).length > 1 ? "s" : ""} expirant bientôt
               </span>
               <ul className="mt-1 space-y-0.5">
-                {stats!.expiringContracts.map((c: any) => (
+                {stats!.expiringContracts.filter((c: any) => !c.urgent).map((c: any) => (
                   <li key={c.id} className="text-xs text-orange-600 dark:text-orange-300">
                     {c.client?.raison_sociale ?? "—"} — expire le {formatDateFR(c.date_fin)}
                   </li>
