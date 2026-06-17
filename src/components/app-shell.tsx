@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
-import { LayoutDashboard, Users, ClipboardList, FileText, FileSignature, Settings, LogOut, Bug, Plus, Package } from "lucide-react";
+import { LayoutDashboard, Users, ClipboardList, FileText, FileSignature, Settings, LogOut, Bug, Plus, Package, BarChart2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -116,10 +116,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       {/* Bottom navigation premium */}
       <nav
-        className="fixed bottom-0 inset-x-0 z-30 bg-card border-t border-border shadow-[0_-4px_20px_rgba(0,0,0,0.06)]"
-        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+        className="fixed bottom-0 inset-x-0 z-30 bg-card border-t border-border"
+        style={{
+          paddingBottom: "env(safe-area-inset-bottom)",
+          boxShadow: "0 -4px 24px rgba(0,0,0,0.08), 0 -1px 4px rgba(0,0,0,0.04)",
+        }}
       >
-        <div className="mx-auto grid max-w-3xl grid-cols-5">
+        <div className="mx-auto grid max-w-3xl grid-cols-6">
           {navItems.map((item) => {
             const Icon = item.icon;
             const active = item.exact
@@ -129,18 +132,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <Link
                 key={item.to}
                 to={item.to as any}
-                className={`relative flex flex-col items-center justify-center gap-1 py-3 text-[10px] font-medium transition-all ${
+                className={`relative flex flex-col items-center justify-center gap-0.5 py-2.5 text-[9px] font-medium transition-all ${
                   active
                     ? "text-accent nav-active"
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
-                <div className={`grid h-8 w-8 place-items-center rounded-xl transition-all ${
-                  active ? "bg-accent/10" : ""
+                <div className={`grid h-8 w-8 place-items-center rounded-xl transition-all duration-200 ${
+                  active ? "bg-accent/12 scale-105" : ""
                 }`}>
-                  <Icon className={`h-5 w-5 transition-all ${active ? "stroke-[2.5]" : ""}`} />
+                  <Icon className={`h-[18px] w-[18px] transition-all ${active ? "stroke-[2.5]" : "stroke-[1.8]"}`} />
                 </div>
-                <span className={active ? "font-semibold" : ""}>{item.label}</span>
+                <span className={active ? "font-bold" : ""}>{item.label}</span>
               </Link>
             );
           })}
