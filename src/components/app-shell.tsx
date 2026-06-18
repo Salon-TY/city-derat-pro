@@ -29,8 +29,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   async function handleSignOut() {
     await qc.cancelQueries();
     qc.clear();
-    await supabase.auth.signOut();
+    await supabase.auth.signOut({ scope: "local" });
     toast.success("Déconnecté");
+    // Navigation handled by onAuthStateChange in _app.tsx
     navigate({ to: "/auth", replace: true });
   }
 

@@ -21,8 +21,16 @@ function AppLayout() {
         setReady(true);
       }
     });
-    const { data: sub } = supabase.auth.onAuthStateChange((event) => {
-      if (event === "SIGNED_OUT") navigate({ to: "/auth", replace: true });
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!mounted) return;
+      if (event === "SIGNED_OUT") {
+        setReady(false);
+        navigate({ to: "/auth", replace: true });
+      } else if (event === "SIGNED_IN" && session) {
+        setReady(true);
+      } else if (event === "TOKEN_REFRESHED" && session) {
+        setReady(true);
+      }
     });
     return () => { mounted = false; sub.subscription.unsubscribe(); };
   }, [navigate]);
