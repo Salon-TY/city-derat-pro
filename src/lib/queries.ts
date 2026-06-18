@@ -1,6 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
 import { db } from "./db";
 
+function localDate(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 export type Client = {
   id: string;
   user_id: string;
@@ -253,10 +260,11 @@ export function useDashboardStats() {
   return useQuery({
     queryKey: ["dashboard"],
     queryFn: async () => {
-      const today = new Date().toISOString().slice(0, 10);
+      const _now = new Date();
+      const today = localDate(_now);
       const monthStart = today.slice(0, 7) + "-01";
-      const prevMonthStart = new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1).toISOString().slice(0, 10);
-      const prevMonthEnd = new Date(new Date().getFullYear(), new Date().getMonth(), 0).toISOString().slice(0, 10);
+      const prevMonthStart = localDate(new Date(_now.getFullYear(), _now.getMonth() - 1, 1));
+      const prevMonthEnd = localDate(new Date(_now.getFullYear(), _now.getMonth(), 0));
 
       const [todayRes, todayInterventions, monthRes, prevMonthRes, unpaidRes, contractsRes, stockRes] = await Promise.all([
         db.from("interventions").select("*", { count: "exact", head: true }).eq("date", today),
