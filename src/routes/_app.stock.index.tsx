@@ -9,8 +9,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Minus, AlertTriangle, Package } from "lucide-react";
+import { Plus, Minus, AlertTriangle, Package, Trash2 } from "lucide-react";
 import { useStockProducts, type StockProduct } from "@/lib/queries";
 import { stockProductSchema, type StockProductForm, UNITES_STOCK, formatEUR } from "@/lib/schemas";
 import { supabase } from "@/integrations/supabase/client";
@@ -127,10 +128,50 @@ function ProductRow({ product }: { product: StockProduct }) {
             <Button size="icon" className="h-9 w-9 bg-accent text-accent-foreground hover:bg-accent/90" onClick={() => prompt("in")} aria-label="Ajouter au stock" disabled={adjustMut.isPending}>
               <Plus className="h-4 w-4" />
             </Button>
+            <DeleteProductButton id={product.id} nom={product.nom} />
           </div>
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function DeleteProductButton({ id, nom }: { id: string; nom: string }) {
+  const qc = useQueryClient();
+  const deleteMut = useMutation({
+    mutationFn: async () => {
+      const { error } = await db.from("stock_products").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Produit supprimé");
+      qc.invalidateQueries({ queryKey: ["stock_products"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+    },
+    onError: (e: any) => toast.error(e.message ?? "Erreur"),
+  });
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        <Button size="icon" variant="outline" className="h-9 w-9 text-destructive hover:text-destructive border-destructive/30" aria-label="Supprimer le produit">
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Supprimer ce produit ?</AlertDialogTitle>
+          <AlertDialogDescription>
+            "{nom}" sera définitivement supprimé du stock. Cette action est irréversible.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Annuler</AlertDialogCancel>
+          <AlertDialogAction onClick={() => deleteMut.mutate()} className="bg-destructive" disabled={deleteMut.isPending}>
+            Supprimer
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
 

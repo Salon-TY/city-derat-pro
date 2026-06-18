@@ -3,12 +3,13 @@ import { useIntervention, useSettings } from "@/lib/queries";
 import { formatDateFR, STATUTS_INTERVENTION } from "@/lib/schemas";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Receipt, Copy, FileText, MapPin, Calendar, Bug, FlaskConical, Package, ClipboardList, CalendarClock } from "lucide-react";
+import { ArrowLeft, Receipt, Copy, FileText, MapPin, Calendar, Bug, FlaskConical, Package, ClipboardList, CalendarClock, Trash2 } from "lucide-react";
 import { db } from "@/lib/db";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
 export const Route = createFileRoute("/_app/interventions/$id")({
   head: () => ({ meta: [{ title: "Intervention — CITY DERAT" }] }),
@@ -31,6 +32,15 @@ function InterventionDetail() {
   const qc = useQueryClient();
   const { data: intervention, isLoading } = useIntervention(id);
   const { data: settings } = useSettings();
+
+  async function handleDelete() {
+    const { error } = await db.from("interventions").delete().eq("id", id);
+    if (error) { toast.error(error.message); return; }
+    qc.invalidateQueries({ queryKey: ["interventions"] });
+    qc.invalidateQueries({ queryKey: ["dashboard"] });
+    toast.success("Intervention supprimée");
+    navigate({ to: "/interventions" });
+  }
 
   async function handleDuplicate() {
     if (!intervention) return;
@@ -148,10 +158,25 @@ function InterventionDetail() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3">
+      <div className="flex items-center justify-between gap-3">
         <Link to="/interventions" className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground">
           <ArrowLeft className="mr-1 h-4 w-4" /> Retour
         </Link>
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive"><Trash2 className="h-4 w-4" /></Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Supprimer cette intervention ?</AlertDialogTitle>
+              <AlertDialogDescription>Cette action est irréversible.</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Annuler</AlertDialogCancel>
+              <AlertDialogAction onClick={handleDelete} className="bg-destructive">Supprimer</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
 
       {/* En-tête */}

@@ -15,7 +15,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Plus, AlertTriangle, CheckCircle2, Clock } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Plus, AlertTriangle, CheckCircle2, Clock, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_app/contrats/")({
@@ -96,9 +97,12 @@ function ContratsPage() {
                       <div className="font-semibold truncate">{c.client?.raison_sociale ?? "—"}</div>
                       <div className="text-xs text-muted-foreground">{formatDateFR(c.date_debut)} → {formatDateFR(c.date_fin)}</div>
                     </div>
-                    <div className="flex items-center gap-1 shrink-0">
-                      {STATUT_ICONS[c.statut]}
-                      <span className="text-xs font-medium">{statutLabel(c.statut)}</span>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <div className="flex items-center gap-1">
+                        {STATUT_ICONS[c.statut]}
+                        <span className="text-xs font-medium">{statutLabel(c.statut)}</span>
+                      </div>
+                      <DeleteContratButton id={c.id} nom={c.client?.raison_sociale ?? "ce contrat"} />
                     </div>
                   </div>
                   <div className="flex items-center gap-4">
@@ -125,6 +129,38 @@ function ContratsPage() {
         </div>
       )}
     </div>
+  );
+}
+
+function DeleteContratButton({ id, nom }: { id: string; nom: string }) {
+  const qc = useQueryClient();
+  async function handleDelete() {
+    const { error } = await db.from("contracts").delete().eq("id", id);
+    if (error) { toast.error(error.message); return; }
+    qc.invalidateQueries({ queryKey: ["contracts"] });
+    qc.invalidateQueries({ queryKey: ["dashboard"] });
+    toast.success("Contrat supprimé");
+  }
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive hover:text-destructive">
+          <Trash2 className="h-3.5 w-3.5" />
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Supprimer ce contrat ?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Contrat de {nom}. Cette action est irréversible.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Annuler</AlertDialogCancel>
+          <AlertDialogAction onClick={handleDelete} className="bg-destructive">Supprimer</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
 
