@@ -23,33 +23,21 @@ function Dashboard() {
         <p className="text-sm text-muted-foreground">Aperçu de votre activité.</p>
       </div>
 
-      {/* KPIs */}
-      <div className="grid gap-3">
-        <Card className="overflow-hidden">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-4">
-              <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-primary text-primary-foreground">
-                <ClipboardList className="h-6 w-6" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="text-xs text-muted-foreground uppercase tracking-wide">Interventions du jour</div>
-                <div className="mt-0.5 text-2xl font-bold tabular-nums">
-                  {isLoading ? "…" : stats?.interventionsToday ?? 0}
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+      {/* KPIs
+          Mobile  : grille 2 colonnes compacte — CA pleine largeur (col-span-2), les 2 autres côte à côte
+          Desktop : colonne unique, cartes pleine largeur (comportement actuel) */}
+      <div className="grid grid-cols-2 gap-2 md:grid-cols-1 md:gap-3">
 
-        <Card className="overflow-hidden">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-4">
-              <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-accent text-accent-foreground">
-                <Euro className="h-6 w-6" />
+        {/* CA du mois — col-span-2 sur mobile (pleine largeur), order-1 desktop */}
+        <Card className="col-span-2 overflow-hidden order-1 md:order-2">
+          <CardContent className="p-3 md:p-4">
+            <div className="flex items-center gap-3 md:gap-4">
+              <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-accent text-accent-foreground md:h-12 md:w-12">
+                <Euro className="h-4 w-4 md:h-6 md:w-6" />
               </div>
               <div className="min-w-0 flex-1">
                 <div className="text-xs text-muted-foreground uppercase tracking-wide">CA du mois</div>
-                <div className="mt-0.5 text-2xl font-bold tabular-nums">
+                <div className="mt-0.5 text-xl font-bold tabular-nums md:text-2xl">
                   {isLoading ? "…" : formatEUR(stats?.caMonth)}
                 </div>
                 {!isLoading && stats?.caPrevMonth !== undefined && (
@@ -63,17 +51,35 @@ function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card className="overflow-hidden">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-4">
-              <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-destructive text-destructive-foreground">
-                <AlertCircle className="h-6 w-6" />
+        {/* Interventions du jour — col-span-1 sur mobile, order-1 desktop */}
+        <Card className="overflow-hidden order-2 md:order-1">
+          <CardContent className="p-3 md:p-4">
+            <div className="flex items-center gap-2 md:gap-4">
+              <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-primary text-primary-foreground md:h-12 md:w-12">
+                <ClipboardList className="h-4 w-4 md:h-6 md:w-6" />
               </div>
               <div className="min-w-0 flex-1">
-                <div className="text-xs text-muted-foreground uppercase tracking-wide">
-                  Factures impayées ({stats?.unpaidCount ?? 0})
+                <div className="text-[10px] leading-tight text-muted-foreground uppercase tracking-wide md:text-xs">Interventions du jour</div>
+                <div className="mt-0.5 text-xl font-bold tabular-nums md:text-2xl">
+                  {isLoading ? "…" : stats?.interventionsToday ?? 0}
                 </div>
-                <div className="mt-0.5 text-2xl font-bold tabular-nums">
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Factures impayées — col-span-1 sur mobile, order-3 desktop */}
+        <Card className="overflow-hidden order-3">
+          <CardContent className="p-3 md:p-4">
+            <div className="flex items-center gap-2 md:gap-4">
+              <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-destructive text-destructive-foreground md:h-12 md:w-12">
+                <AlertCircle className="h-4 w-4 md:h-6 md:w-6" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-[10px] leading-tight text-muted-foreground uppercase tracking-wide md:text-xs">
+                  Impayées ({stats?.unpaidCount ?? 0})
+                </div>
+                <div className="mt-0.5 text-xl font-bold tabular-nums md:text-2xl">
                   {isLoading ? "…" : formatEUR(stats?.unpaidTotal)}
                 </div>
               </div>
