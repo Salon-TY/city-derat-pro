@@ -4,6 +4,7 @@
   "sideEffects": false,
   "type": "module",
   "scripts": {
+    "postinstall": "node scripts/postinstall.mjs",
     "dev": "vite dev",
     "build": "vite build",
     "build:dev": "vite build --mode development",
@@ -13,6 +14,8 @@
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
+    "@netlify/config": "^25.0.0",
+    "@netlify/vite-plugin": "^2.12.8",
     "@radix-ui/react-accordion": "^1.2.12",
     "@radix-ui/react-alert-dialog": "^1.1.15",
     "@radix-ui/react-aspect-ratio": "^1.1.8",
@@ -69,10 +72,13 @@
     "vite-tsconfig-paths": "^6.0.2",
     "zod": "^3.24.2"
   },
+  "overrides": {
+    "@netlify/config": "^25.0.0"
+  },
   "devDependencies": {
     "@eslint/js": "^9.32.0",
     "@lovable.dev/vite-tanstack-config": "^2.3.2",
-    "@netlify/vite-plugin-tanstack-start": "^1.3.15",
+    "@netlify/vite-plugin-tanstack-start": "^1.3.16",
     "@types/node": "^22.16.5",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
@@ -84,6 +90,7 @@
     "eslint-plugin-react-refresh": "^0.4.20",
     "globals": "^15.15.0",
     "nitro": "3.0.260603-beta",
+    "patch-package": "^8.0.1",
     "prettier": "^3.7.3",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.56.1",
