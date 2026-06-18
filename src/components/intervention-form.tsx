@@ -35,18 +35,18 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { Camera, Plus, UserPlus, X } from "lucide-react";
 
-// Cases à cocher rapport rapide
+// Cases à cocher rapport rapide — label court + phrase complète dans les observations
 const RAPPORT_ITEMS = [
-  { id: "acces_difficile", label: "Accès difficile" },
-  { id: "traces_fraiches", label: "Traces fraîches détectées" },
-  { id: "appats_poses", label: "Appâts posés" },
-  { id: "appats_consommes", label: "Appâts consommés" },
-  { id: "pieges_poses", label: "Pièges posés" },
-  { id: "pieges_declenches", label: "Pièges déclenchés" },
-  { id: "retour_necessaire", label: "Retour nécessaire" },
-  { id: "client_absent", label: "Client absent" },
-  { id: "traitement_complet", label: "Traitement complet effectué" },
-  { id: "recommandations_hygiene", label: "Recommandations hygiène faites" },
+  { id: "acces_difficile",       label: "Accès difficile",              phrase: "L'accès aux zones de traitement a été difficile lors de cette intervention." },
+  { id: "traces_fraiches",       label: "Traces fraîches détectées",    phrase: "Des traces d'activité récente ont été détectées sur le site." },
+  { id: "appats_poses",          label: "Appâts posés",                 phrase: "Des appâts rodenticides ont été posés aux points stratégiques identifiés." },
+  { id: "appats_consommes",      label: "Appâts consommés",             phrase: "Les appâts posés lors du passage précédent ont été consommés, confirmant une activité persistante." },
+  { id: "pieges_poses",          label: "Pièges posés",                 phrase: "Des pièges mécaniques ont été installés aux emplacements à risque." },
+  { id: "pieges_declenches",     label: "Pièges déclenchés",            phrase: "Les pièges installés ont été déclenchés, attestant d'une présence active." },
+  { id: "retour_necessaire",     label: "Retour nécessaire",            phrase: "Un second passage sera nécessaire pour s'assurer de l'efficacité du traitement." },
+  { id: "client_absent",         label: "Client absent",                phrase: "Le client était absent lors de l'intervention. Un compte-rendu lui sera transmis." },
+  { id: "traitement_complet",    label: "Traitement complet effectué",  phrase: "Le traitement complet a été réalisé conformément au protocole prévu." },
+  { id: "recommandations_hygiene", label: "Recommandations hygiène",    phrase: "Des recommandations relatives aux mesures d'hygiène préventives ont été communiquées au client." },
 ];
 
 export type PhotoFile = { file: File; preview: string };
@@ -104,19 +104,6 @@ export function InterventionForm({
     }
   }, [clientId, clients]);
 
-  // Quand les cases changent, on met à jour les observations
-  useEffect(() => {
-    if (rapportChecks.length === 0) return;
-    const labels = rapportChecks.map((id) => RAPPORT_ITEMS.find((r) => r.id === id)?.label ?? id);
-    const current = form.getValues("observations") ?? "";
-    const tag = `[Rapport: ${labels.join(", ")}]`;
-    // Remplace l'ancien tag ou ajoute en début
-    if (current.includes("[Rapport:")) {
-      form.setValue("observations", current.replace(/\[Rapport:[^\]]*\]/, tag));
-    } else {
-      form.setValue("observations", tag + (current ? "\n" + current : ""));
-    }
-  }, [rapportChecks]);
 
   async function createClient() {
     if (!newClientName.trim()) { toast.error("Le nom est requis"); return; }
@@ -142,9 +129,16 @@ export function InterventionForm({
   }
 
   function toggleCheck(id: string) {
-    setRapportChecks((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-    );
+    const item = RAPPORT_ITEMS.find((r) => r.id === id)!;
+    const isChecked = rapportChecks.includes(id);
+    setRapportChecks((prev) => isChecked ? prev.filter((x) => x !== id) : [...prev, id]);
+    const current = form.getValues("observations") ?? "";
+    if (!isChecked) {
+      form.setValue("observations", current ? `${current}\n${item.phrase}` : item.phrase);
+    } else {
+      const updated = current.replace(item.phrase, "").replace(/\n{2,}/g, "\n").trim();
+      form.setValue("observations", updated);
+    }
   }
 
   function addStockItem() {
