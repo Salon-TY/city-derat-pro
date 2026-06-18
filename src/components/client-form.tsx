@@ -39,7 +39,7 @@ export function ClientForm({
       </Field>
       <div className="grid grid-cols-2 gap-3">
         <Field label="Téléphone"><Input type="tel" {...form.register("telephone")} /></Field>
-        <Field label="Email" error={form.formState.errors.email?.message}><Input type="email" {...form.register("email")} /></Field>
+        <Field label="Email * (requis pour rapports)" error={form.formState.errors.email?.message}><Input type="email" {...form.register("email")} placeholder="contact@client.fr" /></Field>
       </div>
       <Field label="SIRET (optionnel)"><Input {...form.register("siret")} /></Field>
       <Field label="Type de nuisible">

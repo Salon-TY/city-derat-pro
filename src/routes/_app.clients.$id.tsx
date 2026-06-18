@@ -3,7 +3,7 @@ import { useClient, useInterventions, useContracts } from "@/lib/queries";
 import { ClientForm } from "@/components/client-form";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Trash2, Phone, Mail, MapPin, Hash, ClipboardList, FileSignature } from "lucide-react";
+import { ArrowLeft, Trash2, Phone, Mail, MapPin, Hash, ClipboardList, FileSignature, AlertTriangle } from "lucide-react";
 import { db } from "@/lib/db";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -89,6 +89,13 @@ function ClientDetail() {
           {client.email && <div className="flex items-center gap-2 text-sm"><Mail className="h-4 w-4 shrink-0 text-muted-foreground" /><a className="text-primary underline truncate" href={`mailto:${client.email}`}>{client.email}</a></div>}
           {client.siret && <div className="flex items-center gap-2 text-sm"><Hash className="h-4 w-4 shrink-0 text-muted-foreground" />SIRET: {client.siret}</div>}
           {client.type_nuisible && <div className="inline-flex items-center rounded-full bg-accent/15 px-2 py-1 text-xs text-accent font-medium">Nuisible: {client.type_nuisible}</div>}
+          {!client.email && (
+            <div className="flex items-center gap-2 rounded-lg border border-orange-300 bg-orange-50 dark:bg-orange-950/20 px-3 py-2 text-sm text-orange-700 dark:text-orange-400">
+              <AlertTriangle className="h-4 w-4 shrink-0" />
+              <span className="flex-1">Email manquant — requis pour l'envoi des rapports</span>
+              <a href="#modifier" className="text-xs font-medium underline">Corriger ↓</a>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -133,7 +140,7 @@ function ClientDetail() {
         )}
       </section>
 
-      <section>
+      <section id="modifier">
         <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">Modifier</h2>
         <ClientForm defaultValues={client} onSubmit={handleUpdate} submitLabel="Enregistrer" />
       </section>

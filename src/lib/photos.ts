@@ -3,19 +3,43 @@ import type { PhotoFile } from "@/components/intervention-form";
 import { toast } from "sonner";
 
 const BUCKET = "intervention-photos";
+const SIG_BUCKET = "intervention-signatures";
+const MAX_PX = 1200;
+const JPEG_QUALITY = 0.75;
 
-export async function ensureBucket() {
+async function compressImage(file: File): Promise<Blob> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let { width, height } = img;
+      if (width > MAX_PX || height > MAX_PX) {
+        if (width >= height) { height = Math.round((height * MAX_PX) / width); width = MAX_PX; }
+        else { width = Math.round((width * MAX_PX) / height); height = MAX_PX; }
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d")!;
+      ctx.drawImage(img, 0, 0, width, height);
+      canvas.toBlob((blob) => resolve(blob ?? file), "image/jpeg", JPEG_QUALITY);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
+    img.src = url;
+  });
+}
+
+async function ensureBucket(name: string) {
   const { data: buckets } = await supabase.storage.listBuckets();
-  const exists = buckets?.some((b) => b.name === BUCKET);
-  if (!exists) {
-    const { error } = await supabase.storage.createBucket(BUCKET, {
-      public: true,
-      fileSizeLimit: 10 * 1024 * 1024, // 10 MB
-      allowedMimeTypes: ["image/jpeg", "image/png", "image/webp", "image/heic"],
-    });
-    if (error && !error.message.includes("already exists")) {
-      console.error("[photos] Failed to create bucket:", error.message);
-    }
+  if (buckets?.some((b) => b.name === name)) return;
+  const { error } = await supabase.storage.createBucket(name, {
+    public: true,
+    fileSizeLimit: 10 * 1024 * 1024,
+    allowedMimeTypes: ["image/jpeg", "image/png", "image/webp", "image/heic"],
+  });
+  if (error && !error.message.includes("already exists")) {
+    console.error(`[photos] Failed to create bucket ${name}:`, error.message);
   }
 }
 
@@ -24,21 +48,17 @@ export async function uploadInterventionPhotos(
   userId: string,
 ): Promise<string[]> {
   if (photos.length === 0) return [];
-
-  await ensureBucket();
-
+  await ensureBucket(BUCKET);
   const urls: string[] = [];
   for (const { file } of photos) {
-    const ext = file.name.split(".").pop() ?? "jpg";
-    const path = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-    const { error } = await supabase.storage.from(BUCKET).upload(path, file, {
+    const compressed = await compressImage(file);
+    const path = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`;
+    const { error } = await supabase.storage.from(BUCKET).upload(path, compressed, {
       cacheControl: "3600",
+      contentType: "image/jpeg",
       upsert: false,
     });
-    if (error) {
-      toast.error(`Erreur upload photo : ${error.message}`);
-      continue;
-    }
+    if (error) { toast.error(`Erreur upload photo : ${error.message}`); continue; }
     const { data } = supabase.storage.from(BUCKET).getPublicUrl(path);
     urls.push(data.publicUrl);
   }
@@ -46,10 +66,30 @@ export async function uploadInterventionPhotos(
 }
 
 export async function deleteInterventionPhoto(url: string) {
-  // Extract path from public URL: .../storage/v1/object/public/intervention-photos/<path>
-  const marker = `/object/public/${BUCKET}/`;
+  const path = extractPath(url, BUCKET);
+  if (path) await supabase.storage.from(BUCKET).remove([path]);
+}
+
+export async function uploadSignature(blob: Blob, userId: string): Promise<string | null> {
+  await ensureBucket(SIG_BUCKET);
+  const path = `${userId}/${Date.now()}.png`;
+  const { error } = await supabase.storage.from(SIG_BUCKET).upload(path, blob, {
+    cacheControl: "3600",
+    contentType: "image/png",
+    upsert: false,
+  });
+  if (error) { toast.error(`Erreur upload signature : ${error.message}`); return null; }
+  const { data } = supabase.storage.from(SIG_BUCKET).getPublicUrl(path);
+  return data.publicUrl;
+}
+
+export async function deleteSignature(url: string) {
+  const path = extractPath(url, SIG_BUCKET);
+  if (path) await supabase.storage.from(SIG_BUCKET).remove([path]);
+}
+
+function extractPath(url: string, bucket: string): string | null {
+  const marker = `/object/public/${bucket}/`;
   const idx = url.indexOf(marker);
-  if (idx === -1) return;
-  const path = url.slice(idx + marker.length);
-  await supabase.storage.from(BUCKET).remove([path]);
+  return idx === -1 ? null : url.slice(idx + marker.length);
 }

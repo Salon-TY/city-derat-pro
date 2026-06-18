@@ -29,6 +29,7 @@ export type Intervention = {
   statut: string;
   date_prochain_passage: string | null;
   photos: string[] | null;
+  signature_url: string | null;
   created_at: string;
   updated_at: string;
   client?: Client | null;
