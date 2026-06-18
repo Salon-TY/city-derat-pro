@@ -1,14 +1,15 @@
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import {
   LayoutDashboard, Users, ClipboardList, FileText, FileSignature,
-  Settings, LogOut, Bug, Plus, Package, Search, X, TrendingUp
+  Settings, LogOut, Bug, Plus, Package, Search, X, TrendingUp, FileCheck
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useState, useEffect, useRef } from "react";
 import { db } from "@/lib/db";
-import { formatEUR, formatDateFR } from "@/lib/schemas";
+import { formatEUR, formatDateFR, TYPES_INTERVENTION } from "@/lib/schemas";
+import { useClients, useSettings } from "@/lib/queries";
 
 const navItems = [
   { to: "/", label: "Accueil", icon: LayoutDashboard, exact: true },
@@ -17,13 +18,8 @@ const navItems = [
   { to: "/tresorerie", label: "Tréso", icon: TrendingUp },
   { to: "/stock", label: "Stock", icon: Package },
   { to: "/factures", label: "Factures", icon: FileText },
+  { to: "/devis", label: "Devis", icon: FileCheck },
   { to: "/contrats", label: "Contrats", icon: FileSignature },
-];
-
-const FAB_ACTIONS = [
-  { label: "Intervention", to: "/interventions/new", color: "bg-primary" },
-  { label: "Client", to: "/clients/new", color: "bg-primary/80" },
-  { label: "Facture", to: "/factures/new", color: "bg-accent" },
 ];
 
 type SearchResult = {
@@ -194,12 +190,138 @@ function GlobalSearch({ onClose }: { onClose: () => void }) {
   );
 }
 
+function localDateStr(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function QuickInterventionModal({ onClose }: { onClose: () => void }) {
+  const navigate = useNavigate();
+  const { data: clients = [] } = useClients();
+  const [clientId, setClientId] = useState("");
+  const [type, setType] = useState<string>(TYPES_INTERVENTION[0]);
+  const [date, setDate] = useState(localDateStr(new Date()));
+  const [saving, setSaving] = useState(false);
+  const [showMore, setShowMore] = useState(false);
+
+  async function handleCreate() {
+    if (!clientId) { toast.error("Sélectionnez un client"); return; }
+    setSaving(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data, error } = await db.from("interventions").insert({
+        user_id: user.id,
+        client_id: clientId,
+        date,
+        type_intervention: type,
+        statut: "planifiee",
+        adresse_site: "",
+        type_nuisible: "",
+        produits: "",
+        quantite: "",
+        observations: "",
+      }).select().single();
+      if (error) { toast.error(error.message); return; }
+      toast.success("Intervention créée");
+      onClose();
+      navigate({ to: "/interventions/$id", params: { id: data.id } });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-4" onClick={onClose}>
+      <div className="w-full max-w-md rounded-2xl bg-card shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b">
+          <h2 className="font-bold text-base">Intervention rapide</h2>
+          <button onClick={onClose} className="grid h-8 w-8 place-items-center rounded-lg hover:bg-muted transition-colors">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="p-5 space-y-4">
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Client *</label>
+            <select
+              value={clientId}
+              onChange={(e) => setClientId(e.target.value)}
+              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-accent"
+            >
+              <option value="">Sélectionner un client…</option>
+              {clients.map((c) => <option key={c.id} value={c.id}>{c.raison_sociale}</option>)}
+            </select>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Type</label>
+            <div className="flex gap-2">
+              {TYPES_INTERVENTION.map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setType(t)}
+                  className={`flex-1 rounded-lg border py-2 text-xs font-medium transition-colors ${type === t ? "bg-accent border-accent text-white" : "border-border text-muted-foreground hover:border-accent/50"}`}
+                >
+                  {t === "Les deux" ? "Les 2" : t}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Date</label>
+            <input
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-accent"
+            />
+          </div>
+          <button
+            onClick={handleCreate}
+            disabled={saving || !clientId}
+            className="w-full rounded-xl bg-primary py-3 text-sm font-bold text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+          >
+            {saving ? "Création…" : "Créer en 1 clic"}
+          </button>
+          <div className="border-t pt-3 space-y-2">
+            <button
+              onClick={() => setShowMore((v) => !v)}
+              className="text-xs text-muted-foreground hover:text-foreground w-full text-center"
+            >
+              Plus d'options {showMore ? "▲" : "▼"}
+            </button>
+            {showMore && (
+              <div className="space-y-2">
+                {[
+                  { label: "Intervention complète", to: "/interventions/new", color: "bg-primary/10 text-primary" },
+                  { label: "Nouveau client", to: "/clients/new", color: "bg-primary/10 text-primary" },
+                  { label: "Nouvelle facture", to: "/factures/new", color: "bg-accent/10 text-accent" },
+                  { label: "Nouveau devis", to: "/devis/new", color: "bg-accent/10 text-accent" },
+                ].map((a) => (
+                  <Link
+                    key={a.to}
+                    to={a.to as any}
+                    onClick={onClose}
+                    className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition-colors ${a.color} hover:opacity-80`}
+                  >
+                    <Plus className="h-4 w-4" /> {a.label}
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [fabOpen, setFabOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const { data: settings } = useSettings();
 
   async function handleSignOut() {
     await qc.cancelQueries();
@@ -213,6 +335,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen bg-background flex flex-col">
 
       {searchOpen && <GlobalSearch onClose={() => setSearchOpen(false)} />}
+      {fabOpen && <QuickInterventionModal onClose={() => setFabOpen(false)} />}
 
       {/* Header premium */}
       <header
@@ -221,11 +344,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       >
         <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-3">
           <Link to="/" className="flex items-center gap-3 min-w-0">
-            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-accent shadow-lg shadow-accent/30">
-              <Bug className="h-5 w-5 text-white" />
+            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-accent shadow-lg shadow-accent/30 overflow-hidden">
+              {settings?.logo_url
+                ? <img src={settings.logo_url} alt="Logo" className="h-full w-full object-contain" />
+                : <Bug className="h-5 w-5 text-white" />}
             </div>
             <div className="min-w-0">
-              <div className="truncate text-base font-bold tracking-tight leading-none">CITY DERAT</div>
+              <div className="truncate text-base font-bold tracking-tight leading-none">{settings?.nom ?? "CITY DERAT"}</div>
               <div className="truncate text-[10px] uppercase tracking-widest text-primary-foreground/60 mt-0.5">
                 Dératisation · Désinsectisation
               </div>
@@ -264,37 +389,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </main>
 
-      {/* FAB — bouton d'action rapide */}
-      <div className="fixed bottom-20 right-4 z-40 flex flex-col-reverse items-end gap-2">
-        {fabOpen && (
-          <>
-            {FAB_ACTIONS.map((action) => (
-              <Link
-                key={action.to}
-                to={action.to as any}
-                onClick={() => setFabOpen(false)}
-                className={`flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-semibold text-white shadow-lg transition-all animate-in-up ${action.color}`}
-              >
-                <Plus className="h-4 w-4" />
-                {action.label}
-              </Link>
-            ))}
-            <div
-              className="fixed inset-0 -z-10"
-              onClick={() => setFabOpen(false)}
-            />
-          </>
-        )}
+      {/* FAB — intervention rapide */}
+      <div className="fixed bottom-20 right-4 z-40">
         <button
-          onClick={() => setFabOpen((v) => !v)}
+          onClick={() => setFabOpen(true)}
           className="fab"
-          aria-label="Actions rapides"
+          aria-label="Intervention rapide"
           style={{ position: "relative", bottom: "auto", right: "auto" }}
         >
-          <Plus
-            className="h-6 w-6 transition-transform duration-200"
-            style={{ transform: fabOpen ? "rotate(45deg)" : "rotate(0deg)" }}
-          />
+          <Plus className="h-6 w-6" />
         </button>
       </div>
 
@@ -306,7 +409,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           boxShadow: "0 -4px 24px rgba(0,0,0,0.08), 0 -1px 4px rgba(0,0,0,0.04)",
         }}
       >
-        <div className="mx-auto grid max-w-3xl grid-cols-7">
+        <div className="mx-auto grid max-w-3xl grid-cols-8">
           {navItems.map((item) => {
             const Icon = item.icon;
             const active = item.exact

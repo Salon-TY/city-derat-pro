@@ -318,6 +318,7 @@ function InterventionDetail() {
 <body>
   <div class="header">
     <div class="prestataire">
+      ${s?.logo_url ? `<img src="${s.logo_url}" style="max-height:40px;max-width:100px;object-fit:contain;display:block;margin-bottom:4px" alt="Logo">` : ""}
       <strong>${s?.nom ?? "CITY DERAT"}</strong>
       ${s?.adresse ? s.adresse.replace(/\n/g, "<br>") : "17 RUE DU DOCTEUR LAURENT<br>75013 PARIS 13"}
       <br>Siret : ${s?.siret ?? "88268913600019"}

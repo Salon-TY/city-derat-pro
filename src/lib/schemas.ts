@@ -105,6 +105,32 @@ export const settingsSchema = z.object({
 });
 export type SettingsForm = z.infer<typeof settingsSchema>;
 
+export const STATUTS_DEVIS = [
+  { value: "brouillon", label: "Brouillon" },
+  { value: "envoye", label: "Envoyé" },
+  { value: "accepte", label: "Accepté" },
+  { value: "refuse", label: "Refusé" },
+  { value: "converti", label: "Converti" },
+] as const;
+
+export const quoteLineSchema = z.object({
+  description: z.string().trim().min(1, "Description requise").max(500),
+  quantite: z.coerce.number().min(0).max(10000),
+  prix_unitaire_ht: z.coerce.number().min(0).max(1000000),
+});
+export type QuoteLineForm = z.infer<typeof quoteLineSchema>;
+
+export const quoteSchema = z.object({
+  client_id: z.string().uuid("Client requis"),
+  date_devis: z.string().min(1, "Requis"),
+  date_validite: z.string().min(1, "Requis"),
+  statut: z.string().default("brouillon"),
+  tva_taux: z.coerce.number().min(0).max(100).default(20),
+  notes: z.string().max(2000).default(""),
+  lines: z.array(quoteLineSchema).min(1, "Au moins une ligne"),
+});
+export type QuoteForm = z.infer<typeof quoteSchema>;
+
 export const UNITES_STOCK = ["kg", "L", "boîte", "unité"] as const;
 
 export const stockProductSchema = z.object({

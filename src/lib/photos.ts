@@ -93,3 +93,26 @@ function extractPath(url: string, bucket: string): string | null {
   const idx = url.indexOf(marker);
   return idx === -1 ? null : url.slice(idx + marker.length);
 }
+
+const LOGO_BUCKET = "company-logos";
+
+export async function uploadCompanyLogo(file: File, userId: string): Promise<string | null> {
+  await ensureBucket(LOGO_BUCKET);
+  const ext = file.name.split(".").pop() ?? "jpg";
+  const path = `${userId}/logo.${ext}`;
+  const compressed = await compressImage(file);
+  const { error } = await supabase.storage.from(LOGO_BUCKET).upload(path, compressed, {
+    cacheControl: "3600",
+    contentType: file.type || "image/jpeg",
+    upsert: true,
+  });
+  if (error) { toast.error(`Erreur upload logo : ${error.message}`); return null; }
+  const { data } = supabase.storage.from(LOGO_BUCKET).getPublicUrl(path);
+  // Add cache-bust to force refresh
+  return `${data.publicUrl}?t=${Date.now()}`;
+}
+
+export async function deleteCompanyLogo(url: string) {
+  const path = extractPath(url.split("?")[0], LOGO_BUCKET);
+  if (path) await supabase.storage.from(LOGO_BUCKET).remove([path]);
+}

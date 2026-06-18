@@ -6,14 +6,16 @@ import { useSettings } from "@/lib/queries";
 import { db } from "@/lib/db";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
-import { BarChart2, ChevronRight, Download } from "lucide-react";
+import { BarChart2, ChevronRight, Download, ImageIcon, Trash2, Upload } from "lucide-react";
 import * as XLSX from "xlsx";
+import { uploadCompanyLogo, deleteCompanyLogo } from "@/lib/photos";
+import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_app/parametres")({
   head: () => ({ meta: [{ title: "Paramètres — CITY DERAT" }] }),
@@ -24,6 +26,33 @@ function ParametresPage() {
   const { data: settings } = useSettings();
   const qc = useQueryClient();
   const [exporting, setExporting] = useState(false);
+  const [logoUploading, setLogoUploading] = useState(false);
+  const logoInputRef = useRef<HTMLInputElement>(null);
+
+  async function handleLogoUpload(file: File) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    setLogoUploading(true);
+    try {
+      const url = await uploadCompanyLogo(file, user.id);
+      if (!url) return;
+      const { error } = await db.from("company_settings").update({ logo_url: url }).eq("user_id", user.id);
+      if (error) { toast.error(error.message); return; }
+      qc.invalidateQueries({ queryKey: ["settings"] });
+      toast.success("Logo mis à jour");
+    } finally {
+      setLogoUploading(false);
+    }
+  }
+
+  async function handleLogoDelete() {
+    if (!settings?.logo_url) return;
+    await deleteCompanyLogo(settings.logo_url);
+    const { error } = await db.from("company_settings").update({ logo_url: null }).eq("user_id", settings.user_id);
+    if (error) { toast.error(error.message); return; }
+    qc.invalidateQueries({ queryKey: ["settings"] });
+    toast.success("Logo supprimé");
+  }
 
   async function handleExport() {
     setExporting(true);
@@ -195,6 +224,50 @@ function ParametresPage() {
           </Button>
         </CardContent>
       </Card>
+
+      {/* Logo société */}
+      <Card><CardContent className="p-4 space-y-3">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Logo société</h2>
+        <div className="flex items-center gap-4">
+          <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-xl border-2 border-dashed border-border overflow-hidden bg-muted/30">
+            {settings?.logo_url
+              ? <img src={settings.logo_url} alt="Logo" className="h-full w-full object-contain p-1" />
+              : <ImageIcon className="h-8 w-8 text-muted-foreground" />}
+          </div>
+          <div className="space-y-2 flex-1">
+            <input
+              ref={logoInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) handleLogoUpload(f); e.target.value = ""; }}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="w-full"
+              disabled={logoUploading}
+              onClick={() => logoInputRef.current?.click()}
+            >
+              <Upload className="mr-2 h-4 w-4" />
+              {logoUploading ? "Upload…" : settings?.logo_url ? "Changer le logo" : "Importer un logo"}
+            </Button>
+            {settings?.logo_url && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="w-full text-destructive hover:text-destructive"
+                onClick={handleLogoDelete}
+              >
+                <Trash2 className="mr-2 h-4 w-4" /> Supprimer
+              </Button>
+            )}
+            <p className="text-xs text-muted-foreground">PNG ou JPG — apparaît sur les factures et rapports</p>
+          </div>
+        </div>
+      </CardContent></Card>
 
       <Card><CardContent className="p-4">
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">

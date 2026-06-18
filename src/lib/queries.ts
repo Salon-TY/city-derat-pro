@@ -97,6 +97,37 @@ export type Settings = {
   bic: string;
   next_invoice_number: number;
   objectif_ca_mensuel: number;
+  logo_url?: string | null;
+};
+
+export type QuoteLine = {
+  id: string;
+  devis_id: string;
+  user_id: string;
+  description: string;
+  quantite: number;
+  prix_unitaire_ht: number;
+  total_ht: number;
+  ordre: number;
+};
+
+export type Quote = {
+  id: string;
+  user_id: string;
+  client_id: string;
+  numero: string;
+  date_devis: string;
+  date_validite: string;
+  statut: string;
+  total_ht: number;
+  tva: number;
+  tva_taux: number;
+  total_ttc: number;
+  notes: string;
+  created_at: string;
+  updated_at: string;
+  client?: Client | null;
+  lines?: QuoteLine[];
 };
 
 export type Preset = {
@@ -317,6 +348,50 @@ export function useDashboardStats() {
         expiringContracts,
         stockAlerts,
         lowStockCount: stockAlerts.length,
+      };
+    },
+  });
+}
+
+export function useQuotes() {
+  return useQuery({
+    queryKey: ["devis"],
+    queryFn: async (): Promise<Quote[]> => {
+      const { data, error } = await db.from("devis").select("*, client:clients(*)").order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []).map((q: any) => ({
+        ...q,
+        total_ht: Number(q.total_ht),
+        tva: Number(q.tva),
+        tva_taux: Number(q.tva_taux),
+        total_ttc: Number(q.total_ttc),
+      }));
+    },
+  });
+}
+
+export function useQuote(id: string | undefined) {
+  return useQuery({
+    queryKey: ["devis", id],
+    enabled: !!id,
+    queryFn: async (): Promise<Quote | null> => {
+      const { data: quote, error } = await db.from("devis").select("*, client:clients(*)").eq("id", id!).maybeSingle();
+      if (error) throw error;
+      if (!quote) return null;
+      const { data: lines, error: e2 } = await db.from("devis_lines").select("*").eq("devis_id", id!).order("ordre");
+      if (e2) throw e2;
+      return {
+        ...quote,
+        total_ht: Number(quote.total_ht),
+        tva: Number(quote.tva),
+        tva_taux: Number(quote.tva_taux),
+        total_ttc: Number(quote.total_ttc),
+        lines: (lines ?? []).map((l: any) => ({
+          ...l,
+          quantite: Number(l.quantite),
+          prix_unitaire_ht: Number(l.prix_unitaire_ht),
+          total_ht: Number(l.total_ht),
+        })),
       };
     },
   });

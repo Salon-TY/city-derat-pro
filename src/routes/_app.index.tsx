@@ -5,8 +5,9 @@ import { useDashboardStats, useSettings } from "@/lib/queries";
 import { formatEUR, formatDateFR } from "@/lib/schemas";
 import {
   ClipboardList, Euro, AlertCircle, Plus, UserPlus, FileText,
-  TrendingUp, TrendingDown, Minus, Phone, AlertTriangle, Package, MapPin
+  TrendingUp, TrendingDown, Minus, Phone, AlertTriangle, Package, MapPin, FileCheck
 } from "lucide-react";
+import { useQuotes } from "@/lib/queries";
 
 export const Route = createFileRoute("/_app/")({
   head: () => ({ meta: [{ title: "Tableau de bord — CITY DERAT" }] }),
@@ -16,7 +17,9 @@ export const Route = createFileRoute("/_app/")({
 function Dashboard() {
   const { data: stats, isLoading } = useDashboardStats();
   const { data: settings } = useSettings();
+  const { data: devis = [] } = useQuotes();
   const navigate = useNavigate();
+  const devisEnAttente = devis.filter((d) => d.statut === "brouillon" || d.statut === "envoye").length;
 
   const objectif = settings?.objectif_ca_mensuel ?? 3000;
   const caMonth = stats?.caMonth ?? 0;
@@ -91,6 +94,25 @@ function Dashboard() {
             </CardContent>
           </Card>
         </Link>
+
+        {/* Devis en attente */}
+        {devisEnAttente > 0 && (
+          <Link to="/devis" className="overflow-hidden order-3 block">
+            <Card className="hover:border-accent/40 transition-colors h-full">
+              <CardContent className="p-3 md:p-4">
+                <div className="flex items-center gap-2 md:gap-4">
+                  <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-accent/15 text-accent md:h-12 md:w-12">
+                    <FileCheck className="h-4 w-4 md:h-6 md:w-6" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[10px] leading-tight text-muted-foreground uppercase tracking-wide md:text-xs">Devis en attente</div>
+                    <div className="mt-0.5 text-xl font-bold tabular-nums md:text-2xl">{devisEnAttente}</div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </Link>
+        )}
 
         {/* Factures impayées — cliquable vers factures */}
         <Link to="/factures" search={{ statut: "retard" }} className="overflow-hidden order-3 block">
