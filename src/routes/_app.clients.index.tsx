@@ -4,7 +4,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useClients } from "@/lib/queries";
-import { Plus, Search, Phone, MapPin, ChevronRight } from "lucide-react";
+import { Plus, Search, Phone, MapPin, ChevronRight, Filter, X } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_app/clients/")({
   head: () => ({ meta: [{ title: "Clients — CITY DERAT" }] }),
@@ -14,16 +15,29 @@ export const Route = createFileRoute("/_app/clients/")({
 function ClientsList() {
   const { data: clients = [], isLoading } = useClients();
   const [q, setQ] = useState("");
+  const [nuisibleFilter, setNuisibleFilter] = useState("all");
+  const [filtersOpen, setFiltersOpen] = useState(false);
+
+  const nuisibleTypes = useMemo(() => {
+    const s = new Set(clients.map((c) => c.type_nuisible).filter(Boolean));
+    return [...s].sort();
+  }, [clients]);
+
+  const activeFiltersCount = [nuisibleFilter !== "all" ? 1 : 0].reduce((a, b) => a + b, 0);
 
   const filtered = useMemo(() => {
+    let list = [...clients];
     const s = q.trim().toLowerCase();
-    if (!s) return clients;
-    return clients.filter((c) =>
-      [c.raison_sociale, c.adresse_site, c.telephone, c.email, c.type_nuisible]
-        .filter(Boolean)
-        .some((v) => v.toLowerCase().includes(s))
-    );
-  }, [clients, q]);
+    if (s) {
+      list = list.filter((c) =>
+        [c.raison_sociale, c.adresse_site, c.telephone, c.email, c.type_nuisible]
+          .filter(Boolean)
+          .some((v) => v.toLowerCase().includes(s))
+      );
+    }
+    if (nuisibleFilter !== "all") list = list.filter((c) => c.type_nuisible === nuisibleFilter);
+    return list;
+  }, [clients, q, nuisibleFilter]);
 
   return (
     <div className="space-y-4">
@@ -34,10 +48,58 @@ function ClientsList() {
         </Button>
       </div>
 
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Rechercher un client…" className="pl-9" />
+      <div className="flex gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Rechercher un client…" className="pl-9" />
+        </div>
+        {nuisibleTypes.length > 0 && (
+          <button
+            onClick={() => setFiltersOpen((v) => !v)}
+            className={cn(
+              "relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border transition-colors",
+              filtersOpen || activeFiltersCount > 0
+                ? "bg-accent/10 border-accent text-accent"
+                : "bg-card border-border text-muted-foreground"
+            )}
+          >
+            <Filter className="h-4 w-4" />
+            {activeFiltersCount > 0 && (
+              <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-accent text-[9px] font-bold text-white">
+                {activeFiltersCount}
+              </span>
+            )}
+          </button>
+        )}
       </div>
+
+      {filtersOpen && nuisibleTypes.length > 0 && (
+        <Card>
+          <CardContent className="p-3 space-y-3">
+            <div>
+              <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1.5">Type nuisible</div>
+              <div className="flex flex-wrap gap-1">
+                <button onClick={() => setNuisibleFilter("all")}
+                  className={cn("rounded-full px-2.5 py-1 text-xs font-medium border",
+                    nuisibleFilter === "all" ? "bg-primary text-primary-foreground border-primary" : "bg-card text-muted-foreground border-border")}
+                >Tous</button>
+                {nuisibleTypes.map((t) => (
+                  <button key={t} onClick={() => setNuisibleFilter(t)}
+                    className={cn("rounded-full px-2.5 py-1 text-xs font-medium border",
+                      nuisibleFilter === t ? "bg-primary text-primary-foreground border-primary" : "bg-card text-muted-foreground border-border")}
+                  >{t}</button>
+                ))}
+              </div>
+            </div>
+            {activeFiltersCount > 0 && (
+              <button onClick={() => setNuisibleFilter("all")}
+                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+                <X className="h-3.5 w-3.5" /> Réinitialiser
+              </button>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {isLoading ? (
         <div className="text-center text-sm text-muted-foreground py-10">Chargement…</div>
@@ -47,6 +109,7 @@ function ClientsList() {
         </CardContent></Card>
       ) : (
         <div className="space-y-2">
+          <div className="text-xs text-muted-foreground">{filtered.length} client{filtered.length > 1 ? "s" : ""}</div>
           {filtered.map((c) => (
             <Link key={c.id} to="/clients/$id" params={{ id: c.id }} className="block">
               <Card className="hover:border-primary/50 transition-colors">
