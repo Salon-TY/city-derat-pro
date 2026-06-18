@@ -3,7 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useDashboardStats } from "@/lib/queries";
 import { formatEUR, formatDateFR } from "@/lib/schemas";
-import { ClipboardList, Euro, AlertCircle, Plus, UserPlus, FileText, PackageX, TrendingUp, TrendingDown, Minus, Phone, AlertTriangle, Package } from "lucide-react";
+import { ClipboardList, Euro, AlertCircle, Plus, UserPlus, FileText, TrendingUp, TrendingDown, Minus, Phone, AlertTriangle, Package, MapPin } from "lucide-react";
 
 export const Route = createFileRoute("/_app/")({
   head: () => ({ meta: [{ title: "Tableau de bord — CITY DERAT" }] }),
@@ -100,7 +100,18 @@ function Dashboard() {
                 <CardContent className="p-3 flex items-center justify-between gap-3">
                   <div className="min-w-0 flex-1">
                     <div className="font-medium text-sm truncate">{inv.client?.raison_sociale ?? "—"}</div>
-                    <div className="text-xs text-muted-foreground">{inv.type_intervention} · {inv.adresse_site}</div>
+                    <div className="text-xs text-muted-foreground">{inv.type_intervention}</div>
+                    {inv.adresse_site && (
+                      <a
+                        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(inv.adresse_site)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1 text-xs text-primary hover:underline mt-0.5"
+                      >
+                        <MapPin className="h-3 w-3 shrink-0" />
+                        <span className="truncate">{inv.adresse_site}</span>
+                      </a>
+                    )}
                   </div>
                   {inv.client?.telephone && (
                     <a

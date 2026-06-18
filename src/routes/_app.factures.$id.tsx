@@ -3,7 +3,7 @@ import { useInvoice, useSettings } from "@/lib/queries";
 import { formatEUR, formatDateFR, STATUTS_FACTURE } from "@/lib/schemas";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Download, Trash2, Mail } from "lucide-react";
+import { ArrowLeft, Download, Trash2, Mail, MapPin } from "lucide-react";
 import { db } from "@/lib/db";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -205,6 +205,17 @@ function FactureDetail() {
             <h1 className="text-xl font-bold">Facture N°{invoice.numero}</h1>
             <div className="text-sm text-muted-foreground">{invoice.client?.raison_sociale ?? "—"}</div>
             <div className="text-xs text-muted-foreground">{formatDateFR(invoice.date_facture)}</div>
+            {invoice.adresse_site && (
+              <a
+                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(invoice.adresse_site)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1 text-xs text-primary hover:underline mt-1"
+              >
+                <MapPin className="h-3 w-3 shrink-0" />
+                {invoice.adresse_site}
+              </a>
+            )}
           </div>
           <span className={cn("text-xs font-medium uppercase rounded-full px-2 py-1", STATUT_COLORS[invoice.statut] ?? "bg-muted")}>
             {statutLabel(invoice.statut)}

@@ -74,7 +74,17 @@ function ClientDetail() {
       <Card>
         <CardContent className="p-4 space-y-2">
           <h1 className="text-xl font-bold tracking-tight">{client.raison_sociale}</h1>
-          {client.adresse_site && <div className="flex items-start gap-2 text-sm"><MapPin className="h-4 w-4 mt-0.5 shrink-0 text-muted-foreground" />{client.adresse_site}</div>}
+          {client.adresse_site && (
+            <a
+              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(client.adresse_site)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-start gap-2 text-sm text-primary hover:underline"
+            >
+              <MapPin className="h-4 w-4 mt-0.5 shrink-0" />
+              {client.adresse_site}
+            </a>
+          )}
           {client.telephone && <div className="flex items-center gap-2 text-sm"><Phone className="h-4 w-4 shrink-0 text-muted-foreground" /><a className="text-primary underline" href={`tel:${client.telephone}`}>{client.telephone}</a></div>}
           {client.email && <div className="flex items-center gap-2 text-sm"><Mail className="h-4 w-4 shrink-0 text-muted-foreground" /><a className="text-primary underline truncate" href={`mailto:${client.email}`}>{client.email}</a></div>}
           {client.siret && <div className="flex items-center gap-2 text-sm"><Hash className="h-4 w-4 shrink-0 text-muted-foreground" />SIRET: {client.siret}</div>}

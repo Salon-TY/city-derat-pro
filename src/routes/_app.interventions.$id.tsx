@@ -195,10 +195,15 @@ function InterventionDetail() {
         </div>
 
         {intervention.adresse_site && (
-          <div className="flex items-start gap-1.5 text-xs text-muted-foreground">
+          <a
+            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(intervention.adresse_site)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-start gap-1.5 text-xs text-primary hover:underline"
+          >
             <MapPin className="h-3 w-3 mt-0.5 shrink-0" />
             <span className="whitespace-pre-wrap">{intervention.adresse_site}</span>
-          </div>
+          </a>
         )}
       </CardContent></Card>
 

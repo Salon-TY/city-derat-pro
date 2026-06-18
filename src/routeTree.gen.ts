@@ -13,6 +13,7 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as AppIndexRouteImport } from './routes/_app.index'
 import { Route as AppStatsRouteImport } from './routes/_app.stats'
+import { Route as AppPlanningRouteImport } from './routes/_app.planning'
 import { Route as AppParametresRouteImport } from './routes/_app.parametres'
 import { Route as AppStockIndexRouteImport } from './routes/_app.stock.index'
 import { Route as AppInterventionsIndexRouteImport } from './routes/_app.interventions.index'
@@ -43,6 +44,11 @@ const AppIndexRoute = AppIndexRouteImport.update({
 const AppStatsRoute = AppStatsRouteImport.update({
   id: '/stats',
   path: '/stats',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppPlanningRoute = AppPlanningRouteImport.update({
+  id: '/planning',
+  path: '/planning',
   getParentRoute: () => AppRoute,
 } as any)
 const AppParametresRoute = AppParametresRouteImport.update({
@@ -110,6 +116,7 @@ export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
   '/auth': typeof AuthRoute
   '/parametres': typeof AppParametresRoute
+  '/planning': typeof AppPlanningRoute
   '/stats': typeof AppStatsRoute
   '/clients/$id': typeof AppClientsIdRoute
   '/clients/new': typeof AppClientsNewRoute
@@ -126,6 +133,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/parametres': typeof AppParametresRoute
+  '/planning': typeof AppPlanningRoute
   '/stats': typeof AppStatsRoute
   '/': typeof AppIndexRoute
   '/clients/$id': typeof AppClientsIdRoute
@@ -145,6 +153,7 @@ export interface FileRoutesById {
   '/_app': typeof AppRouteWithChildren
   '/auth': typeof AuthRoute
   '/_app/parametres': typeof AppParametresRoute
+  '/_app/planning': typeof AppPlanningRoute
   '/_app/stats': typeof AppStatsRoute
   '/_app/': typeof AppIndexRoute
   '/_app/clients/$id': typeof AppClientsIdRoute
@@ -165,6 +174,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/parametres'
+    | '/planning'
     | '/stats'
     | '/clients/$id'
     | '/clients/new'
@@ -181,6 +191,7 @@ export interface FileRouteTypes {
   to:
     | '/auth'
     | '/parametres'
+    | '/planning'
     | '/stats'
     | '/'
     | '/clients/$id'
@@ -199,6 +210,7 @@ export interface FileRouteTypes {
     | '/_app'
     | '/auth'
     | '/_app/parametres'
+    | '/_app/planning'
     | '/_app/stats'
     | '/_app/'
     | '/_app/clients/$id'
@@ -247,6 +259,13 @@ declare module '@tanstack/react-router' {
       path: '/stats'
       fullPath: '/stats'
       preLoaderRoute: typeof AppStatsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/planning': {
+      id: '/_app/planning'
+      path: '/planning'
+      fullPath: '/planning'
+      preLoaderRoute: typeof AppPlanningRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/parametres': {
@@ -338,6 +357,7 @@ declare module '@tanstack/react-router' {
 
 interface AppRouteChildren {
   AppParametresRoute: typeof AppParametresRoute
+  AppPlanningRoute: typeof AppPlanningRoute
   AppStatsRoute: typeof AppStatsRoute
   AppIndexRoute: typeof AppIndexRoute
   AppClientsIdRoute: typeof AppClientsIdRoute
@@ -355,6 +375,7 @@ interface AppRouteChildren {
 
 const AppRouteChildren: AppRouteChildren = {
   AppParametresRoute: AppParametresRoute,
+  AppPlanningRoute: AppPlanningRoute,
   AppStatsRoute: AppStatsRoute,
   AppIndexRoute: AppIndexRoute,
   AppClientsIdRoute: AppClientsIdRoute,

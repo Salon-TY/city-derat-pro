@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
-import { LayoutDashboard, Users, ClipboardList, FileText, FileSignature, Settings, LogOut, Bug, Plus, Package, BarChart2 } from "lucide-react";
+import { LayoutDashboard, Users, ClipboardList, FileText, FileSignature, Settings, LogOut, Bug, Plus, Package, Calendar } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -9,6 +9,7 @@ const navItems = [
   { to: "/", label: "Accueil", icon: LayoutDashboard, exact: true },
   { to: "/clients", label: "Clients", icon: Users },
   { to: "/interventions", label: "Terrain", icon: ClipboardList },
+  { to: "/planning", label: "Planning", icon: Calendar },
   { to: "/stock", label: "Stock", icon: Package },
   { to: "/factures", label: "Factures", icon: FileText },
   { to: "/contrats", label: "Contrats", icon: FileSignature },
@@ -123,7 +124,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           boxShadow: "0 -4px 24px rgba(0,0,0,0.08), 0 -1px 4px rgba(0,0,0,0.04)",
         }}
       >
-        <div className="mx-auto grid max-w-3xl grid-cols-6">
+        <div className="mx-auto grid max-w-3xl grid-cols-7">
           {navItems.map((item) => {
             const Icon = item.icon;
             const active = item.exact
