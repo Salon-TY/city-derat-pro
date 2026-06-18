@@ -96,6 +96,7 @@ export type Settings = {
   iban: string;
   bic: string;
   next_invoice_number: number;
+  objectif_ca_mensuel: number;
 };
 
 export type Preset = {
@@ -271,7 +272,7 @@ export function useDashboardStats() {
         db.from("interventions").select("*, client:clients(raison_sociale, telephone)").eq("date", today).order("created_at"),
         db.from("invoices").select("total_ttc, date_facture, statut").gte("date_facture", monthStart),
         db.from("invoices").select("total_ttc, statut").gte("date_facture", prevMonthStart).lte("date_facture", prevMonthEnd),
-        db.from("invoices").select("id, total_ttc, statut").in("statut", ["envoyee", "retard"]),
+        db.from("invoices").select("id, total_ttc, statut, echeance, client:clients(raison_sociale)").in("statut", ["envoyee", "retard"]),
         db.from("contracts").select("*, client:clients(raison_sociale)").eq("statut", "actif"),
         db.from("stock_products").select("*"),
       ]);
@@ -290,6 +291,15 @@ export function useDashboardStats() {
       const now = new Date();
       const in7Days = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
       const in30Days = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
+      const overdueInvoices = impayes
+        .filter((i: any) => i.statut === "retard" && i.echeance)
+        .map((i: any) => {
+          const daysLate = Math.floor((now.getTime() - new Date(i.echeance + "T00:00:00").getTime()) / (1000 * 60 * 60 * 24));
+          return { ...i, daysLate };
+        })
+        .filter((i: any) => i.daysLate > 7)
+        .sort((a: any, b: any) => b.daysLate - a.daysLate);
       const expiringContracts = (contractsRes.data ?? [])
         .filter((c: any) => c.date_fin <= in30Days && c.date_fin >= today)
         .map((c: any) => ({ ...c, urgent: c.date_fin <= in7Days }));
@@ -303,6 +313,7 @@ export function useDashboardStats() {
         caPrevMonth,
         unpaidCount: impayes.length,
         unpaidTotal: impayesTotal,
+        overdueInvoices,
         expiringContracts,
         stockAlerts,
         lowStockCount: stockAlerts.length,

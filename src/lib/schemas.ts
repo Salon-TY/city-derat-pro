@@ -101,6 +101,7 @@ export const settingsSchema = z.object({
   email: z.string().email("Email invalide").or(z.literal("")).default(""),
   iban: z.string().max(50).default(""),
   bic: z.string().max(50).default(""),
+  objectif_ca_mensuel: z.coerce.number().min(0).max(10000000).default(3000),
 });
 export type SettingsForm = z.infer<typeof settingsSchema>;
 

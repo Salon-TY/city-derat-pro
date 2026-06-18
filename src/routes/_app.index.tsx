@@ -1,9 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useDashboardStats } from "@/lib/queries";
+import { useDashboardStats, useSettings } from "@/lib/queries";
 import { formatEUR, formatDateFR } from "@/lib/schemas";
-import { ClipboardList, Euro, AlertCircle, Plus, UserPlus, FileText, TrendingUp, TrendingDown, Minus, Phone, AlertTriangle, Package, MapPin } from "lucide-react";
+import {
+  ClipboardList, Euro, AlertCircle, Plus, UserPlus, FileText,
+  TrendingUp, TrendingDown, Minus, Phone, AlertTriangle, Package, MapPin
+} from "lucide-react";
 
 export const Route = createFileRoute("/_app/")({
   head: () => ({ meta: [{ title: "Tableau de bord — CITY DERAT" }] }),
@@ -12,8 +15,13 @@ export const Route = createFileRoute("/_app/")({
 
 function Dashboard() {
   const { data: stats, isLoading } = useDashboardStats();
+  const { data: settings } = useSettings();
 
-  const caDiff = (stats?.caMonth ?? 0) - (stats?.caPrevMonth ?? 0);
+  const objectif = settings?.objectif_ca_mensuel ?? 3000;
+  const caMonth = stats?.caMonth ?? 0;
+  const caProgress = objectif > 0 ? Math.min(100, (caMonth / objectif) * 100) : 0;
+
+  const caDiff = caMonth - (stats?.caPrevMonth ?? 0);
   const caTrend = caDiff > 0 ? "up" : caDiff < 0 ? "down" : "flat";
 
   return (
@@ -23,12 +31,9 @@ function Dashboard() {
         <p className="text-sm text-muted-foreground">Aperçu de votre activité.</p>
       </div>
 
-      {/* KPIs
-          Mobile  : grille 2 colonnes compacte — CA pleine largeur (col-span-2), les 2 autres côte à côte
-          Desktop : colonne unique, cartes pleine largeur (comportement actuel) */}
       <div className="grid grid-cols-2 gap-2 md:grid-cols-1 md:gap-3">
 
-        {/* CA du mois — col-span-2 sur mobile (pleine largeur), order-1 desktop */}
+        {/* CA du mois */}
         <Card className="col-span-2 overflow-hidden order-1 md:order-2">
           <CardContent className="p-3 md:p-4">
             <div className="flex items-center gap-3 md:gap-4">
@@ -38,7 +43,7 @@ function Dashboard() {
               <div className="min-w-0 flex-1">
                 <div className="text-xs text-muted-foreground uppercase tracking-wide">CA du mois</div>
                 <div className="mt-0.5 text-xl font-bold tabular-nums md:text-2xl">
-                  {isLoading ? "…" : formatEUR(stats?.caMonth)}
+                  {isLoading ? "…" : formatEUR(caMonth)}
                 </div>
                 {!isLoading && stats?.caPrevMonth !== undefined && (
                   <div className={`flex items-center gap-1 text-xs mt-0.5 ${caTrend === "up" ? "text-green-600" : caTrend === "down" ? "text-destructive" : "text-muted-foreground"}`}>
@@ -46,12 +51,27 @@ function Dashboard() {
                     <span>vs mois dernier : {formatEUR(stats.caPrevMonth)}</span>
                   </div>
                 )}
+                {/* Barre de progression vers l'objectif */}
+                {!isLoading && objectif > 0 && (
+                  <div className="mt-2">
+                    <div className="flex justify-between text-[10px] text-muted-foreground mb-1">
+                      <span>Objectif mensuel</span>
+                      <span>{Math.round(caProgress)}% — {formatEUR(objectif)}</span>
+                    </div>
+                    <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all duration-500 ${caProgress >= 100 ? "bg-green-500" : caProgress >= 50 ? "bg-accent" : "bg-orange-400"}`}
+                        style={{ width: `${caProgress}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Interventions du jour — col-span-1 sur mobile, order-1 desktop */}
+        {/* Interventions du jour */}
         <Card className="overflow-hidden order-2 md:order-1">
           <CardContent className="p-3 md:p-4">
             <div className="flex items-center gap-2 md:gap-4">
@@ -68,7 +88,7 @@ function Dashboard() {
           </CardContent>
         </Card>
 
-        {/* Factures impayées — col-span-1 sur mobile, order-3 desktop */}
+        {/* Factures impayées */}
         <Card className="overflow-hidden order-3">
           <CardContent className="p-3 md:p-4">
             <div className="flex items-center gap-2 md:gap-4">
@@ -127,6 +147,36 @@ function Dashboard() {
             ))}
           </div>
         </section>
+      )}
+
+      {/* Alertes factures en retard > 7 jours (rouge) */}
+      {!isLoading && (stats?.overdueInvoices?.length ?? 0) > 0 && (
+        <Card className="border-destructive/50 bg-destructive/5">
+          <CardContent className="p-3 flex items-start gap-2">
+            <AlertTriangle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
+            <div className="text-sm flex-1">
+              <span className="font-semibold text-destructive">
+                {stats!.overdueInvoices.length} facture{stats!.overdueInvoices.length > 1 ? "s" : ""} en retard depuis plus de 7 jours
+              </span>
+              <ul className="mt-1 space-y-1">
+                {stats!.overdueInvoices.map((inv: any) => (
+                  <li key={inv.id} className="flex items-center justify-between gap-2">
+                    <span className="text-xs text-destructive/80 truncate">
+                      {(inv.client as any)?.raison_sociale ?? "—"} — {formatEUR(inv.total_ttc)} ({inv.daysLate}j de retard)
+                    </span>
+                    <Link
+                      to="/factures/$id"
+                      params={{ id: inv.id }}
+                      className="shrink-0 text-[10px] font-medium text-destructive underline"
+                    >
+                      Voir
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* Alertes contrats urgents (< 7 jours) */}
@@ -196,8 +246,8 @@ function Dashboard() {
       <div className="space-y-2">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Actions rapides</h2>
         <div className="grid grid-cols-1 gap-2">
-          <Button asChild size="lg" className="h-14 justify-start bg-primary hover:bg-primary/90">
-            <Link to="/interventions/new"><Plus className="mr-2 h-5 w-5" /> Nouvelle intervention</Link>
+          <Button asChild size="lg" className="h-14 justify-start bg-green-700 hover:bg-green-800 text-white">
+            <Link to="/interventions/new"><Plus className="mr-2 h-5 w-5" /> Nouvelle intervention rapide</Link>
           </Button>
           <Button asChild size="lg" variant="secondary" className="h-14 justify-start">
             <Link to="/clients/new"><UserPlus className="mr-2 h-5 w-5" /> Nouveau client</Link>

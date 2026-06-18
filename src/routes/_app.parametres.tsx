@@ -132,7 +132,7 @@ function ParametresPage() {
 
   const form = useForm<SettingsForm>({
     resolver: zodResolver(settingsSchema) as any,
-    defaultValues: { nom: "CITY DERAT", adresse: "", siret: "", tva_number: "", telephone: "", email: "", iban: "", bic: "" },
+    defaultValues: { nom: "CITY DERAT", adresse: "", siret: "", tva_number: "", telephone: "", email: "", iban: "", bic: "", objectif_ca_mensuel: 3000 },
   });
 
   useEffect(() => {
@@ -146,6 +146,7 @@ function ParametresPage() {
         email: settings.email ?? "",
         iban: settings.iban ?? "",
         bic: settings.bic ?? "",
+        objectif_ca_mensuel: settings.objectif_ca_mensuel ?? 3000,
       });
     }
   }, [settings, form]);
@@ -208,6 +209,10 @@ function ParametresPage() {
             <Field label="Téléphone"><Input {...form.register("telephone")} /></Field>
             <Field label="Email" error={form.formState.errors.email?.message}><Input type="email" {...form.register("email")} /></Field>
           </div>
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground pt-2">Objectifs</h2>
+          <Field label="Objectif CA mensuel (€)" error={form.formState.errors.objectif_ca_mensuel?.message}>
+            <Input type="number" min={0} step={100} {...form.register("objectif_ca_mensuel")} />
+          </Field>
           <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground pt-2">Coordonnées bancaires</h2>
           <Field label="IBAN"><Input {...form.register("iban")} /></Field>
           <Field label="BIC"><Input {...form.register("bic")} /></Field>
