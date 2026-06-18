@@ -3,7 +3,10 @@ import { useIntervention, useSettings } from "@/lib/queries";
 import { formatDateFR, STATUTS_INTERVENTION } from "@/lib/schemas";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Receipt, Copy, FileText, MapPin, Calendar, Bug, FlaskConical, Package, ClipboardList, CalendarClock, Trash2 } from "lucide-react";
+import { ArrowLeft, Receipt, Copy, FileText, MapPin, Calendar, Bug, FlaskConical, Package, ClipboardList, CalendarClock, Trash2, Camera, X, ChevronLeft, ChevronRight } from "lucide-react";
+import { useState, useCallback } from "react";
+import { uploadInterventionPhotos, deleteInterventionPhoto } from "@/lib/photos";
+import type { PhotoFile } from "@/components/intervention-form";
 import { db } from "@/lib/db";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -32,6 +35,42 @@ function InterventionDetail() {
   const qc = useQueryClient();
   const { data: intervention, isLoading } = useIntervention(id);
   const { data: settings } = useSettings();
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [uploadingPhotos, setUploadingPhotos] = useState(false);
+
+  const photos: string[] = intervention?.photos ?? [];
+
+  async function handleAddPhotos(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    if (!files.length || !intervention) return;
+    const remaining = 5 - photos.length;
+    const toAdd: PhotoFile[] = files.slice(0, remaining).map((file) => ({
+      file,
+      preview: URL.createObjectURL(file),
+    }));
+    e.target.value = "";
+    setUploadingPhotos(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    const newUrls = await uploadInterventionPhotos(toAdd, user?.id ?? "");
+    toAdd.forEach((p) => URL.revokeObjectURL(p.preview));
+    if (newUrls.length > 0) {
+      const merged = [...photos, ...newUrls];
+      await db.from("interventions").update({ photos: merged }).eq("id", id);
+      qc.invalidateQueries({ queryKey: ["intervention", id] });
+    }
+    setUploadingPhotos(false);
+  }
+
+  async function handleDeletePhoto(url: string) {
+    if (!intervention) return;
+    await deleteInterventionPhoto(url);
+    const merged = photos.filter((u) => u !== url);
+    await db.from("interventions").update({ photos: merged.length > 0 ? merged : null }).eq("id", id);
+    qc.invalidateQueries({ queryKey: ["intervention", id] });
+    if (lightboxIndex !== null) setLightboxIndex(null);
+  }
+
+  const closeLightbox = useCallback(() => setLightboxIndex(null), []);
 
   async function handleDelete() {
     const { error } = await db.from("interventions").delete().eq("id", id);
@@ -226,6 +265,97 @@ function InterventionDetail() {
           <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Observations</h2>
           <p className="text-sm whitespace-pre-wrap">{intervention.observations}</p>
         </CardContent></Card>
+      )}
+
+      {/* Photos */}
+      <Card><CardContent className="p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
+            <Camera className="h-4 w-4" /> Photos ({photos.length}/5)
+          </h2>
+          {photos.length < 5 && (
+            <label className={`flex items-center gap-1 text-xs text-primary cursor-pointer ${uploadingPhotos ? "opacity-50 pointer-events-none" : ""}`}>
+              <Camera className="h-3.5 w-3.5" />
+              {uploadingPhotos ? "Upload…" : "Ajouter"}
+              <input
+                type="file"
+                accept="image/*"
+                capture="environment"
+                multiple
+                className="sr-only"
+                onChange={handleAddPhotos}
+                disabled={uploadingPhotos}
+              />
+            </label>
+          )}
+        </div>
+        {photos.length === 0 ? (
+          <p className="text-xs text-muted-foreground">Aucune photo.</p>
+        ) : (
+          <div className="grid grid-cols-3 gap-2">
+            {photos.map((url, i) => (
+              <button
+                key={url}
+                type="button"
+                onClick={() => setLightboxIndex(i)}
+                className="relative aspect-square rounded-md overflow-hidden border hover:opacity-90 transition-opacity"
+              >
+                <img src={url} alt={`Photo ${i + 1}`} className="w-full h-full object-cover" />
+              </button>
+            ))}
+          </div>
+        )}
+      </CardContent></Card>
+
+      {/* Lightbox */}
+      {lightboxIndex !== null && (
+        <div
+          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center"
+          onClick={closeLightbox}
+        >
+          <button
+            type="button"
+            className="absolute top-3 right-3 text-white/80 hover:text-white"
+            onClick={closeLightbox}
+          >
+            <X className="h-6 w-6" />
+          </button>
+          {lightboxIndex > 0 && (
+            <button
+              type="button"
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-white/80 hover:text-white"
+              onClick={(e) => { e.stopPropagation(); setLightboxIndex((n) => Math.max(0, (n ?? 1) - 1)); }}
+            >
+              <ChevronLeft className="h-8 w-8" />
+            </button>
+          )}
+          {lightboxIndex < photos.length - 1 && (
+            <button
+              type="button"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-white/80 hover:text-white"
+              onClick={(e) => { e.stopPropagation(); setLightboxIndex((n) => Math.min(photos.length - 1, (n ?? 0) + 1)); }}
+            >
+              <ChevronRight className="h-8 w-8" />
+            </button>
+          )}
+          <div className="relative max-w-[90vw] max-h-[80vh]" onClick={(e) => e.stopPropagation()}>
+            <img
+              src={photos[lightboxIndex]}
+              alt={`Photo ${lightboxIndex + 1}`}
+              className="max-w-full max-h-[80vh] object-contain rounded"
+            />
+            <button
+              type="button"
+              onClick={() => handleDeletePhoto(photos[lightboxIndex])}
+              className="absolute bottom-2 right-2 flex items-center gap-1 rounded bg-destructive px-2 py-1 text-xs text-white"
+            >
+              <Trash2 className="h-3 w-3" /> Supprimer
+            </button>
+          </div>
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-white/60 text-xs">
+            {lightboxIndex + 1} / {photos.length}
+          </div>
+        </div>
       )}
 
       {/* Actions */}

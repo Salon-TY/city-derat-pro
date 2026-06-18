@@ -28,6 +28,7 @@ export type Intervention = {
   observations: string;
   statut: string;
   date_prochain_passage: string | null;
+  photos: string[] | null;
   created_at: string;
   updated_at: string;
   client?: Client | null;

@@ -33,7 +33,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
-import { Plus, UserPlus, X } from "lucide-react";
+import { Camera, Plus, UserPlus, X } from "lucide-react";
 
 // Cases à cocher rapport rapide
 const RAPPORT_ITEMS = [
@@ -49,13 +49,15 @@ const RAPPORT_ITEMS = [
   { id: "recommandations_hygiene", label: "Recommandations hygiène faites" },
 ];
 
+export type PhotoFile = { file: File; preview: string };
+
 export function InterventionForm({
   defaultValues,
   onSubmit,
   submitLabel = "Enregistrer l'intervention",
 }: {
   defaultValues?: Partial<IFType>;
-  onSubmit: (v: IFType, stockItems: StockUsageItem[]) => Promise<void> | void;
+  onSubmit: (v: IFType, stockItems: StockUsageItem[], photos: PhotoFile[]) => Promise<void> | void;
   submitLabel?: string;
 }) {
   const { data: clients = [], refetch: refetchClients } = useClients();
@@ -70,6 +72,7 @@ export function InterventionForm({
   const [stockUsage, setStockUsage] = useState<StockUsageItem[]>([]);
   const [pickedProductId, setPickedProductId] = useState("");
   const [pickedQty, setPickedQty] = useState<number>(1);
+  const [photos, setPhotos] = useState<PhotoFile[]>([]);
 
   const form = useForm<IFType>({
     resolver: zodResolver(interventionSchema) as any,
@@ -165,11 +168,30 @@ export function InterventionForm({
     setStockUsage((prev) => prev.filter((i) => i.product_id !== product_id));
   }
 
+  function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    const remaining = 5 - photos.length;
+    const toAdd = files.slice(0, remaining);
+    const newPhotos: PhotoFile[] = toAdd.map((file) => ({
+      file,
+      preview: URL.createObjectURL(file),
+    }));
+    setPhotos((prev) => [...prev, ...newPhotos]);
+    e.target.value = "";
+  }
+
+  function removePhoto(index: number) {
+    setPhotos((prev) => {
+      URL.revokeObjectURL(prev[index].preview);
+      return prev.filter((_, i) => i !== index);
+    });
+  }
+
   function handleSubmitWithStock(values: IFType) {
     const produitsSerialized = stockUsage.length > 0
       ? stockUsage.map((i) => `${i.nom} x${i.quantite} ${i.unite}`).join(", ")
       : values.produits;
-    return onSubmit({ ...values, produits: produitsSerialized, quantite: "" }, stockUsage);
+    return onSubmit({ ...values, produits: produitsSerialized, quantite: "" }, stockUsage, photos);
   }
 
   return (
@@ -399,6 +421,51 @@ export function InterventionForm({
       <Field label="Date du prochain passage">
         <Input type="date" {...form.register("date_prochain_passage")} />
       </Field>
+
+      {/* Section photos */}
+      <div className="space-y-1.5">
+        <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          Photos ({photos.length}/5)
+        </Label>
+        <Card>
+          <CardContent className="p-3 space-y-3">
+            {photos.length > 0 && (
+              <div className="grid grid-cols-3 gap-2">
+                {photos.map((p, i) => (
+                  <div key={i} className="relative aspect-square">
+                    <img
+                      src={p.preview}
+                      alt={`Photo ${i + 1}`}
+                      className="w-full h-full object-cover rounded-md border"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removePhoto(i)}
+                      className="absolute -top-1.5 -right-1.5 bg-destructive text-destructive-foreground rounded-full p-0.5 shadow"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            {photos.length < 5 && (
+              <label className="flex items-center justify-center gap-2 w-full h-10 rounded-md border border-dashed border-muted-foreground/40 text-sm text-muted-foreground cursor-pointer hover:bg-muted/30 transition-colors">
+                <Camera className="h-4 w-4" />
+                Prendre / choisir une photo
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  multiple
+                  className="sr-only"
+                  onChange={handlePhotoChange}
+                />
+              </label>
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
       <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
         {submitLabel}

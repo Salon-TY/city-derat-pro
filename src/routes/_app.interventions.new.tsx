@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate, Link, useSearch } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
-import { InterventionForm, type StockUsageItem } from "@/components/intervention-form";
+import { InterventionForm, type StockUsageItem, type PhotoFile } from "@/components/intervention-form";
+import { uploadInterventionPhotos } from "@/lib/photos";
 import { db } from "@/lib/db";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -21,12 +22,18 @@ function NewIntervention() {
   const qc = useQueryClient();
   const search = useSearch({ from: "/_app/interventions/new" });
 
-  async function handleSubmit(values: IFType, stockItems: StockUsageItem[]) {
+  async function handleSubmit(values: IFType, stockItems: StockUsageItem[], photoFiles: PhotoFile[]) {
     const { data: userRes } = await supabase.auth.getUser();
+    const userId = userRes.user?.id ?? "";
+
+    // Upload photos first to get URLs
+    const photoUrls = await uploadInterventionPhotos(photoFiles, userId);
+
     const payload = {
       ...values,
       date_prochain_passage: values.date_prochain_passage || null,
-      user_id: userRes.user?.id,
+      user_id: userId,
+      photos: photoUrls.length > 0 ? photoUrls : null,
     };
     const { error } = await db.from("interventions").insert(payload);
     if (error) { toast.error(error.message); return; }
