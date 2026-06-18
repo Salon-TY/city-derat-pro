@@ -73,9 +73,6 @@
     "xlsx": "^0.18.5",
     "zod": "^3.24.2"
   },
-  "overrides": {
-    "@netlify/config": "^25.0.0"
-  },
   "devDependencies": {
     "@eslint/js": "^9.32.0",
     "@lovable.dev/vite-tanstack-config": "^2.3.2",
