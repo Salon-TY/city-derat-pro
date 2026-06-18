@@ -98,7 +98,30 @@ export type Settings = {
   next_invoice_number: number;
   objectif_ca_mensuel: number;
   logo_url?: string | null;
+  nom_technicien?: string | null;
+  numero_certibiocide?: string | null;
 };
+
+export type ProduitBiocide = {
+  id: string;
+  user_id: string;
+  nom: string;
+  numero_homologation: string;
+  type: string;
+  dose_habituelle: string;
+  ordre: number;
+};
+
+export function useProduitsBiocides() {
+  return useQuery({
+    queryKey: ["produits_biocides"],
+    queryFn: async (): Promise<ProduitBiocide[]> => {
+      const { data, error } = await db.from("produits_biocides").select("*").order("ordre");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+}
 
 export type QuoteLine = {
   id: string;

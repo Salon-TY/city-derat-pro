@@ -1,12 +1,12 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useIntervention, useSettings } from "@/lib/queries";
+import { useIntervention, useSettings, useProduitsBiocides } from "@/lib/queries";
 import { formatDateFR, STATUTS_INTERVENTION } from "@/lib/schemas";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
   ArrowLeft, Receipt, Copy, FileText, MapPin, Calendar, Bug, FlaskConical,
   Package, ClipboardList, CalendarClock, Trash2, Camera, X, ChevronLeft,
-  ChevronRight, Mail, PenLine, CheckCircle, AlertTriangle, Phone,
+  ChevronRight, Mail, PenLine, CheckCircle, AlertTriangle, Phone, ShieldCheck,
 } from "lucide-react";
 import { useState, useCallback, useRef, useEffect } from "react";
 import { uploadInterventionPhotos, deleteInterventionPhoto, uploadSignature, deleteSignature } from "@/lib/photos";
@@ -158,6 +158,7 @@ function InterventionDetail() {
   const qc = useQueryClient();
   const { data: intervention, isLoading } = useIntervention(id);
   const { data: settings } = useSettings();
+  const { data: produitsBiocides = [] } = useProduitsBiocides();
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [uploadingPhotos, setUploadingPhotos] = useState(false);
   const [showSignatureCanvas, setShowSignatureCanvas] = useState(false);
@@ -377,6 +378,204 @@ function InterventionDetail() {
 
     const win = window.open("", "_blank");
     if (!win) { toast.error("Autorisez les popups pour générer le PDF"); return; }
+    win.document.write(html);
+    win.document.close();
+    win.focus();
+    setTimeout(() => { win.print(); }, 600);
+  }
+
+  // ── Certificat biocide ──────────────────────────────────────────────────────
+
+  function generateCertificat() {
+    if (!intervention) return;
+    const s = settings;
+    const year = new Date(intervention.date).getFullYear();
+    const certNum = `CB-${year}-${intervention.id.slice(0, 6).toUpperCase()}`;
+    const now = new Date();
+    const dateGeneration = now.toLocaleDateString("fr-FR") + " " + now.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+
+    // Match produits utilisés avec la base biocide
+    const produitsTexte = intervention.produits ?? "";
+    const produitsLignes: string[] = [];
+    if (produitsTexte) {
+      // Try to match each biocide product against the text
+      const matchedIds = new Set<string>();
+      for (const pb of produitsBiocides) {
+        if (produitsTexte.toLowerCase().includes(pb.nom.toLowerCase())) {
+          matchedIds.add(pb.id);
+          produitsLignes.push(
+            `<tr>
+              <td style="padding:5px 8px;border-bottom:1px solid #f1f5f9">${pb.nom}</td>
+              <td style="padding:5px 8px;border-bottom:1px solid #f1f5f9;color:#6b7280">${pb.numero_homologation || "—"}</td>
+              <td style="padding:5px 8px;border-bottom:1px solid #f1f5f9;color:#6b7280">${pb.type}</td>
+              <td style="padding:5px 8px;border-bottom:1px solid #f1f5f9;color:#6b7280">${pb.dose_habituelle || "—"}</td>
+            </tr>`
+          );
+        }
+      }
+      if (produitsLignes.length === 0) {
+        // Fallback: just list the raw text
+        produitsLignes.push(
+          `<tr><td colspan="4" style="padding:5px 8px;border-bottom:1px solid #f1f5f9">${produitsTexte}</td></tr>`
+        );
+      }
+    } else {
+      produitsLignes.push(
+        `<tr><td colspan="4" style="padding:5px 8px;color:#9ca3af;font-style:italic">Aucun produit renseigné</td></tr>`
+      );
+    }
+
+    const sigHtml = intervention.signature_url
+      ? `<div style="text-align:center">
+           <img src="${intervention.signature_url}" alt="Signature" style="max-height:50px;border-bottom:1px solid #ccc;padding-bottom:4px;">
+           <div style="font-size:9px;color:#6b7280;margin-top:3px;">Signature du client</div>
+         </div>`
+      : `<div style="border-top:1px solid #ccc;margin-top:40px;padding-top:4px;font-size:9px;color:#9ca3af;text-align:center">Signature du client (bon pour accord)</div>`;
+
+    const html = `<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Certificat de traitement biocide ${certNum}</title>
+<style>
+  * { margin:0;padding:0;box-sizing:border-box; }
+  body { font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;font-size:11px;color:#1e293b;padding:28px 36px; }
+  .header { display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;padding-bottom:14px;border-bottom:3px solid #1a3c2e; }
+  .logo-block { display:flex;align-items:center;gap:10px; }
+  .logo-text .name { font-size:16px;font-weight:800;color:#1a3c2e; }
+  .logo-text .sub { font-size:9px;color:#94a3b8;text-transform:uppercase;letter-spacing:1px;margin-top:2px; }
+  .header-coords { font-size:10px;color:#64748b;text-align:right;line-height:1.6; }
+  .cert-title { font-size:18px;font-weight:800;color:#1a3c2e;text-align:center;margin:16px 0 4px; text-transform:uppercase;letter-spacing:1px; }
+  .cert-num { text-align:center;font-size:10px;color:#94a3b8;margin-bottom:16px; }
+  .section { margin-bottom:14px; }
+  .section-title { font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:#1a3c2e;border-bottom:1px solid #e2e8f0;padding-bottom:4px;margin-bottom:8px; }
+  .grid2 { display:grid;grid-template-columns:1fr 1fr;gap:12px; }
+  .info-box { background:#f8fafc;border-radius:6px;padding:8px 10px; }
+  .info-box .lbl { font-size:9px;text-transform:uppercase;letter-spacing:0.6px;color:#94a3b8;margin-bottom:2px; }
+  .info-box .val { font-size:11px;font-weight:600;color:#1e293b; }
+  table { width:100%;border-collapse:collapse; }
+  thead th { background:#1a3c2e;color:#fff;font-size:9px;font-weight:700;text-transform:uppercase;padding:6px 8px;text-align:left; }
+  .reco-box { background:#f0fdf4;border-left:3px solid #16a34a;border-radius:0 6px 6px 0;padding:8px 12px;font-size:10px;color:#166534;line-height:1.6; }
+  .mention { font-size:9px;color:#94a3b8;text-align:center;margin-top:12px;font-style:italic; }
+  .footer { margin-top:16px;padding-top:8px;border-top:2px solid #f1f5f9;font-size:8px;color:#cbd5e1;text-align:center; }
+  .sig-row { display:flex;justify-content:space-between;gap:20px;margin-top:16px; }
+  .sig-col { flex:1;text-align:center; }
+  .sig-label { font-size:9px;color:#94a3b8;text-transform:uppercase;margin-bottom:8px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo-block">
+    ${s?.logo_url ? `<img src="${s.logo_url}" style="max-height:44px;max-width:110px;object-fit:contain;display:block" alt="Logo">` : ""}
+    <div class="logo-text">
+      <div class="name">${s?.nom ?? "CITY DERAT"}</div>
+      <div class="sub">Dératisation · Désinsectisation</div>
+    </div>
+  </div>
+  <div class="header-coords">
+    ${s?.adresse ? s.adresse.replace(/\n/g, "<br>") : ""}<br>
+    ${s?.siret ? `Siret : ${s.siret}<br>` : ""}
+    ${s?.telephone ? `Tél : ${s.telephone}<br>` : ""}
+    ${s?.numero_certibiocide ? `<strong>Certibiocide N° ${s.numero_certibiocide}</strong>` : ""}
+  </div>
+</div>
+
+<div class="cert-title">Certificat de traitement biocide</div>
+<div class="cert-num">N° ${certNum}</div>
+
+<div class="section">
+  <div class="section-title">Informations de l'intervention</div>
+  <div class="grid2">
+    <div class="info-box">
+      <div class="lbl">Date du traitement</div>
+      <div class="val">${formatDateFR(intervention.date)}</div>
+    </div>
+    <div class="info-box">
+      <div class="lbl">Type d'intervention</div>
+      <div class="val">${intervention.type_intervention || "—"}</div>
+    </div>
+    <div class="info-box">
+      <div class="lbl">Nuisible traité</div>
+      <div class="val">${intervention.type_nuisible || "—"}</div>
+    </div>
+    <div class="info-box">
+      <div class="lbl">Technicien</div>
+      <div class="val">${s?.nom_technicien || s?.nom || "CITY DERAT"}</div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">Coordonnées client</div>
+  <div class="grid2">
+    <div class="info-box">
+      <div class="lbl">Client</div>
+      <div class="val">${intervention.client?.raison_sociale ?? "—"}</div>
+      ${intervention.client?.telephone ? `<div style="font-size:10px;color:#64748b;margin-top:2px">Tél : ${intervention.client.telephone}</div>` : ""}
+    </div>
+    <div class="info-box">
+      <div class="lbl">Site traité</div>
+      <div class="val">${intervention.adresse_site || "—"}</div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">Produits biocides utilisés</div>
+  <table>
+    <thead>
+      <tr>
+        <th>Produit</th>
+        <th>N° homologation</th>
+        <th>Type</th>
+        <th>Dose appliquée</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${produitsLignes.join("")}
+    </tbody>
+  </table>
+  ${intervention.quantite ? `<div style="margin-top:6px;font-size:10px;color:#64748b">Quantités : ${intervention.quantite}</div>` : ""}
+</div>
+
+${intervention.observations ? `
+<div class="section">
+  <div class="section-title">Zones traitées / Observations</div>
+  <div style="font-size:10px;color:#374151;line-height:1.6;white-space:pre-wrap">${intervention.observations}</div>
+</div>` : ""}
+
+<div class="section">
+  <div class="section-title">Recommandations post-traitement</div>
+  <div class="reco-box">
+    Respecter un délai de réoccupation de 2 heures après traitement.<br>
+    Tenir les denrées alimentaires à l'écart des zones traitées.<br>
+    En cas d'ingestion accidentelle, contacter le 15 ou le Centre Antipoison.
+  </div>
+</div>
+
+<div class="sig-row">
+  <div class="sig-col">
+    <div class="sig-label">Signature du technicien</div>
+    <div style="border-top:1px solid #ccc;margin-top:40px;padding-top:4px;font-size:9px;color:#9ca3af">${s?.nom_technicien || ""}</div>
+  </div>
+  <div class="sig-col">
+    <div class="sig-label">Signature du client</div>
+    ${sigHtml}
+  </div>
+</div>
+
+<p class="mention">Traitement réalisé conformément à la réglementation en vigueur relative aux produits biocides (Règlement UE 528/2012)</p>
+
+<div class="footer">
+  Certificat N° ${certNum} · Généré le ${dateGeneration} · ${s?.nom ?? "CITY DERAT"} · SIRET ${s?.siret ?? ""}
+</div>
+
+</body>
+</html>`;
+
+    const win = window.open("", "_blank", "width=900,height=750");
+    if (!win) { toast.error("Popup bloquée — autorisez les popups pour ce site"); return; }
     win.document.write(html);
     win.document.close();
     win.focus();
@@ -655,6 +854,21 @@ function InterventionDetail() {
         <Button className="w-full bg-accent hover:bg-accent/90 text-accent-foreground" onClick={generatePDF}>
           <FileText className="mr-2 h-4 w-4" /> Générer PDF rapport officiel
         </Button>
+
+        {settings?.numero_certibiocide ? (
+          <Button className="w-full bg-green-700 hover:bg-green-800 text-white" onClick={generateCertificat}>
+            <ShieldCheck className="mr-2 h-4 w-4" /> Certificat de traitement biocide
+          </Button>
+        ) : (
+          <div title="Renseignez votre numéro Certibiocide dans les paramètres">
+            <Button className="w-full" variant="outline" disabled>
+              <ShieldCheck className="mr-2 h-4 w-4" /> Certificat biocide
+            </Button>
+            <p className="text-[11px] text-muted-foreground text-center mt-1">
+              <Link to="/parametres" className="underline hover:text-foreground">Renseignez votre numéro Certibiocide</Link> dans les paramètres
+            </p>
+          </div>
+        )}
 
         {clientEmail ? (
           <Button className="w-full" variant="outline" onClick={handleSendEmail}>

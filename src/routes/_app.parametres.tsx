@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { settingsSchema, type SettingsForm } from "@/lib/schemas";
-import { useSettings } from "@/lib/queries";
+import { useSettings, useProduitsBiocides, type ProduitBiocide } from "@/lib/queries";
 import { db } from "@/lib/db";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
-import { BarChart2, ChevronRight, Download, ImageIcon, Trash2, Upload } from "lucide-react";
+import { BarChart2, ChevronRight, Download, ImageIcon, Plus, ShieldCheck, Trash2, Upload } from "lucide-react";
 import * as XLSX from "xlsx";
 import { uploadCompanyLogo, deleteCompanyLogo } from "@/lib/photos";
 import { supabase } from "@/integrations/supabase/client";
@@ -22,12 +22,161 @@ export const Route = createFileRoute("/_app/parametres")({
   component: ParametresPage,
 });
 
+const TYPES_BIOCIDE = ["Rodenticide", "Insecticide", "Autre"] as const;
+
+// ─── Produits biocides editor ─────────────────────────────────────────────────
+
+function ProduitsEditor({ userId }: { userId: string }) {
+  const qc = useQueryClient();
+  const { data: produits = [], isLoading } = useProduitsBiocides();
+  const [adding, setAdding] = useState(false);
+  const [newProduit, setNewProduit] = useState({ nom: "", numero_homologation: "", type: "Rodenticide", dose_habituelle: "" });
+
+  async function handleAdd() {
+    if (!newProduit.nom.trim()) { toast.error("Nom requis"); return; }
+    const ordre = produits.length;
+    const { error } = await db.from("produits_biocides").insert({
+      user_id: userId,
+      nom: newProduit.nom.trim(),
+      numero_homologation: newProduit.numero_homologation.trim(),
+      type: newProduit.type,
+      dose_habituelle: newProduit.dose_habituelle.trim(),
+      ordre,
+    });
+    if (error) { toast.error(error.message); return; }
+    qc.invalidateQueries({ queryKey: ["produits_biocides"] });
+    setNewProduit({ nom: "", numero_homologation: "", type: "Rodenticide", dose_habituelle: "" });
+    setAdding(false);
+    toast.success("Produit ajouté");
+  }
+
+  async function handleDelete(id: string) {
+    await db.from("produits_biocides").delete().eq("id", id);
+    qc.invalidateQueries({ queryKey: ["produits_biocides"] });
+    toast.success("Produit supprimé");
+  }
+
+  if (isLoading) return <div className="text-xs text-muted-foreground">Chargement…</div>;
+
+  return (
+    <div className="space-y-2">
+      {produits.length > 0 && (
+        <div className="space-y-2">
+          {produits.map((p) => (
+            <div key={p.id} className="rounded-xl border border-border p-3 space-y-1">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <div className="font-medium text-sm">{p.nom}</div>
+                  <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
+                    {p.numero_homologation && (
+                      <span className="text-xs text-muted-foreground">N° hom. : {p.numero_homologation}</span>
+                    )}
+                    <span className="text-xs text-accent font-medium">{p.type}</span>
+                    {p.dose_habituelle && (
+                      <span className="text-xs text-muted-foreground">Dose : {p.dose_habituelle}</span>
+                    )}
+                  </div>
+                </div>
+                <button onClick={() => handleDelete(p.id)} className="shrink-0 text-destructive/60 hover:text-destructive transition-colors">
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {adding ? (
+        <div className="rounded-xl border-2 border-dashed border-accent/40 p-3 space-y-2">
+          <div className="grid grid-cols-2 gap-2">
+            <div className="col-span-2 space-y-1">
+              <label className="text-[10px] uppercase tracking-wide text-muted-foreground">Nom commercial *</label>
+              <Input
+                placeholder="ex: Brodifacoum Pellets"
+                value={newProduit.nom}
+                onChange={(e) => setNewProduit((v) => ({ ...v, nom: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] uppercase tracking-wide text-muted-foreground">N° homologation</label>
+              <Input
+                placeholder="ex: FR-2021-0001234"
+                value={newProduit.numero_homologation}
+                onChange={(e) => setNewProduit((v) => ({ ...v, numero_homologation: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] uppercase tracking-wide text-muted-foreground">Type</label>
+              <select
+                value={newProduit.type}
+                onChange={(e) => setNewProduit((v) => ({ ...v, type: e.target.value }))}
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none"
+              >
+                {TYPES_BIOCIDE.map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+            <div className="col-span-2 space-y-1">
+              <label className="text-[10px] uppercase tracking-wide text-muted-foreground">Dose habituelle</label>
+              <Input
+                placeholder="ex: 150g par point d'appât"
+                value={newProduit.dose_habituelle}
+                onChange={(e) => setNewProduit((v) => ({ ...v, dose_habituelle: e.target.value }))}
+              />
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Button type="button" variant="outline" size="sm" className="flex-1" onClick={() => setAdding(false)}>
+              Annuler
+            </Button>
+            <Button type="button" size="sm" className="flex-1" onClick={handleAdd}>
+              Ajouter
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setAdding(true)}
+          className="flex w-full items-center gap-2 rounded-xl border border-dashed border-border px-3 py-2.5 text-sm text-muted-foreground hover:border-accent/50 hover:text-accent transition-colors"
+        >
+          <Plus className="h-4 w-4" /> Ajouter un produit biocide
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ─── Main page ────────────────────────────────────────────────────────────────
+
 function ParametresPage() {
   const { data: settings } = useSettings();
   const qc = useQueryClient();
   const [exporting, setExporting] = useState(false);
   const [logoUploading, setLogoUploading] = useState(false);
+  const [nomTechnicien, setNomTechnicien] = useState("");
+  const [numeroCertibiocide, setNumeroCertibiocide] = useState("");
+  const [savingPro, setSavingPro] = useState(false);
   const logoInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (settings) {
+      setNomTechnicien(settings.nom_technicien ?? "");
+      setNumeroCertibiocide(settings.numero_certibiocide ?? "");
+    }
+  }, [settings]);
+
+  async function handleSavePro() {
+    if (!settings?.user_id) return;
+    setSavingPro(true);
+    const { error } = await db.from("company_settings").update({
+      nom_technicien: nomTechnicien.trim() || null,
+      numero_certibiocide: numeroCertibiocide.trim() || null,
+    }).eq("user_id", settings.user_id);
+    setSavingPro(false);
+    if (error) { toast.error(error.message); return; }
+    qc.invalidateQueries({ queryKey: ["settings"] });
+    toast.success("Informations professionnelles enregistrées");
+  }
 
   async function handleLogoUpload(file: File) {
     const { data: { user } } = await supabase.auth.getUser();
@@ -269,6 +418,54 @@ function ParametresPage() {
         </div>
       </CardContent></Card>
 
+      {/* Informations professionnelles */}
+      <Card><CardContent className="p-4 space-y-4">
+        <div className="flex items-center gap-2">
+          <ShieldCheck className="h-4 w-4 text-accent shrink-0" />
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+            Informations professionnelles <span className="normal-case font-normal text-muted-foreground/70">(optionnel)</span>
+          </h2>
+        </div>
+
+        <div className="space-y-3">
+          <Field label="Nom du technicien">
+            <Input
+              placeholder="ex: Jean Dupont"
+              value={nomTechnicien}
+              onChange={(e) => setNomTechnicien(e.target.value)}
+            />
+          </Field>
+          <Field label="Numéro Certibiocide">
+            <Input
+              placeholder="ex: CB-12345-2024"
+              value={numeroCertibiocide}
+              onChange={(e) => setNumeroCertibiocide(e.target.value)}
+            />
+          </Field>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="w-full"
+            disabled={savingPro}
+            onClick={handleSavePro}
+          >
+            {savingPro ? "Enregistrement…" : "Enregistrer"}
+          </Button>
+        </div>
+
+        <div className="border-t pt-3 space-y-2">
+          <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Produits biocides habituels
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Ces produits apparaîtront sur le certificat de traitement biocide.
+          </p>
+          {settings?.user_id && <ProduitsEditor userId={settings.user_id} />}
+        </div>
+      </CardContent></Card>
+
+      {/* Infos société */}
       <Card><CardContent className="p-4">
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Société</h2>
