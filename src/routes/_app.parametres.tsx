@@ -156,14 +156,38 @@ function ParametresPage() {
   const [nomTechnicien, setNomTechnicien] = useState("");
   const [numeroCertibiocide, setNumeroCertibiocide] = useState("");
   const [savingPro, setSavingPro] = useState(false);
+  const [relanceN1, setRelanceN1] = useState(7);
+  const [relanceN2, setRelanceN2] = useState(1);
+  const [relanceN3, setRelanceN3] = useState(31);
+  const [relanceSignature, setRelanceSignature] = useState("");
+  const [savingRelance, setSavingRelance] = useState(false);
   const logoInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (settings) {
       setNomTechnicien(settings.nom_technicien ?? "");
       setNumeroCertibiocide(settings.numero_certibiocide ?? "");
+      setRelanceN1(settings.relance_delai_n1 ?? 7);
+      setRelanceN2(settings.relance_delai_n2 ?? 1);
+      setRelanceN3(settings.relance_delai_n3 ?? 31);
+      setRelanceSignature(settings.relance_signature ?? "");
     }
   }, [settings]);
+
+  async function handleSaveRelance() {
+    if (!settings?.user_id) return;
+    setSavingRelance(true);
+    const { error } = await db.from("company_settings").update({
+      relance_delai_n1: relanceN1,
+      relance_delai_n2: relanceN2,
+      relance_delai_n3: relanceN3,
+      relance_signature: relanceSignature.trim(),
+    }).eq("user_id", settings.user_id);
+    setSavingRelance(false);
+    if (error) { toast.error(error.message); return; }
+    qc.invalidateQueries({ queryKey: ["settings"] });
+    toast.success("Configuration relances enregistrée");
+  }
 
   async function handleSavePro() {
     if (!settings?.user_id) return;
@@ -416,6 +440,38 @@ function ParametresPage() {
             <p className="text-xs text-muted-foreground">PNG ou JPG — apparaît sur les factures et rapports</p>
           </div>
         </div>
+      </CardContent></Card>
+
+      {/* Relances automatiques */}
+      <Card><CardContent className="p-4 space-y-4">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Relances automatiques</h2>
+        <p className="text-xs text-muted-foreground">Définissez les délais (en jours) pour chaque niveau de relance.</p>
+        <div className="grid grid-cols-3 gap-3">
+          <Field label="Rappel avant (J-)">
+            <Input type="number" min={1} max={30} value={relanceN1}
+              onChange={(e) => setRelanceN1(Number(e.target.value))} />
+          </Field>
+          <Field label="Relance amiable (J+)">
+            <Input type="number" min={1} max={60} value={relanceN2}
+              onChange={(e) => setRelanceN2(Number(e.target.value))} />
+          </Field>
+          <Field label="Mise en demeure (J+)">
+            <Input type="number" min={1} max={90} value={relanceN3}
+              onChange={(e) => setRelanceN3(Number(e.target.value))} />
+          </Field>
+        </div>
+        <Field label="Signature email">
+          <Textarea
+            rows={3}
+            placeholder={"Cordialement,\nMon Entreprise\nTéléphone : 06 XX XX XX XX"}
+            value={relanceSignature}
+            onChange={(e) => setRelanceSignature(e.target.value)}
+          />
+        </Field>
+        <Button type="button" variant="outline" size="sm" className="w-full"
+          disabled={savingRelance} onClick={handleSaveRelance}>
+          {savingRelance ? "Enregistrement…" : "Enregistrer"}
+        </Button>
       </CardContent></Card>
 
       {/* Informations professionnelles */}

@@ -100,7 +100,44 @@ export type Settings = {
   logo_url?: string | null;
   nom_technicien?: string | null;
   numero_certibiocide?: string | null;
+  relance_delai_n1?: number | null;
+  relance_delai_n2?: number | null;
+  relance_delai_n3?: number | null;
+  relance_signature?: string | null;
 };
+
+export type Relance = {
+  id: string;
+  user_id: string;
+  facture_id: string;
+  niveau: 1 | 2 | 3;
+  date_envoi: string;
+  notes: string;
+  created_at: string;
+};
+
+export function useRelances() {
+  return useQuery({
+    queryKey: ["relances"],
+    queryFn: async (): Promise<Relance[]> => {
+      const { data, error } = await db.from("relances").select("*").order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []).map((r: any) => ({ ...r, niveau: Number(r.niveau) as 1 | 2 | 3 }));
+    },
+  });
+}
+
+export function useRelancesForInvoice(factureId: string | undefined) {
+  return useQuery({
+    queryKey: ["relances", factureId],
+    enabled: !!factureId,
+    queryFn: async (): Promise<Relance[]> => {
+      const { data, error } = await db.from("relances").select("*").eq("facture_id", factureId!).order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []).map((r: any) => ({ ...r, niveau: Number(r.niveau) as 1 | 2 | 3 }));
+    },
+  });
+}
 
 export type ProduitBiocide = {
   id: string;

@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/button";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
 } from "recharts";
-import { TrendingUp, TrendingDown, Minus, Download, Mail, ChevronDown, ChevronUp, ArrowRight } from "lucide-react";
+import { TrendingUp, TrendingDown, Minus, Download, Mail, ChevronDown, ChevronUp, ArrowRight, Bell } from "lucide-react";
+import { useRelances, useSettings } from "@/lib/queries";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
 
@@ -118,9 +119,31 @@ function useTresorerieData(period: Period) {
   });
 }
 
+const NIVEAU_RELANCE_LABELS = ["", "Rappel", "Amiable", "Mise en demeure"] as const;
+const NIVEAU_RELANCE_COLORS = ["", "text-amber-600 bg-amber-50", "text-orange-600 bg-orange-50", "text-destructive bg-destructive/10"] as const;
+
+function niveauRelanceFromDays(daysLate: number, settings: any): 1 | 2 | 3 {
+  const n3 = settings?.relance_delai_n3 ?? 31;
+  if (daysLate >= n3) return 3;
+  if (daysLate >= 1) return 2;
+  return 1;
+}
+
 function TresoreriePage() {
   const [period, setPeriod] = useState<Period>("mois");
   const { data, isLoading } = useTresorerieData(period);
+  const { data: relances = [] } = useRelances();
+  const { data: settings } = useSettings();
+
+  // Build per-invoice latest relance niveau
+  const relanceNiveauMap = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const r of relances) {
+      const cur = m.get(r.facture_id) ?? 0;
+      if (r.niveau > cur) m.set(r.facture_id, r.niveau);
+    }
+    return m;
+  }, [relances]);
   const [exporting, setExporting] = useState(false);
   const [openDetail, setOpenDetail] = useState<string | null>(null);
   const [clientsOpen, setClientsOpen] = useState(false);
@@ -343,8 +366,15 @@ function TresoreriePage() {
                       className="font-medium text-sm truncate block hover:underline">
                       {(inv.client as any)?.raison_sociale ?? "—"}
                     </Link>
-                    <div className="text-xs text-muted-foreground">
+                    <div className="text-xs text-muted-foreground flex flex-wrap items-center gap-1.5">
                       {formatEUR(inv.total_ttc)} · {inv.daysLate}j de retard
+                      {(() => {
+                        const niveau = niveauRelanceFromDays(inv.daysLate, settings);
+                        const sent = relanceNiveauMap.get(inv.id) ?? 0;
+                        return sent > 0
+                          ? <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${NIVEAU_RELANCE_COLORS[sent] ?? ""}`}>N{sent} envoyé</span>
+                          : <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${NIVEAU_RELANCE_COLORS[niveau]}`}>N{niveau} à envoyer</span>;
+                      })()}
                     </div>
                   </div>
                   <div className="flex items-center gap-2">

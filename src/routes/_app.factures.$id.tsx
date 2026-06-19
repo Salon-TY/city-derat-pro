@@ -1,13 +1,14 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useInvoice, useSettings, useClients, usePresets } from "@/lib/queries";
+import { useInvoice, useSettings, useClients, usePresets, useRelancesForInvoice, type Relance } from "@/lib/queries";
 import { formatEUR, formatDateFR, STATUTS_FACTURE, type InvoiceForm, invoiceSchema } from "@/lib/schemas";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, Download, Trash2, Mail, MapPin, Pencil, Plus, X } from "lucide-react";
+import { ArrowLeft, Download, Trash2, Mail, MapPin, Pencil, Plus, X, Bell, Clock } from "lucide-react";
 import { db } from "@/lib/db";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
@@ -249,13 +250,34 @@ function EditField({ label, error, children }: { label: string; error?: string; 
 
 // ─── Main component ─────────────────────────────────────────────────────────
 
+const NIVEAU_LABELS: Record<number, { label: string; color: string }> = {
+  1: { label: "Rappel avant échéance", color: "text-amber-600" },
+  2: { label: "Relance amiable", color: "text-orange-600" },
+  3: { label: "Mise en demeure", color: "text-destructive" },
+};
+
+function niveauRelance(echeance: string | null, settings: any): 1 | 2 | 3 {
+  const delaiN1 = settings?.relance_delai_n1 ?? 7;
+  const delaiN3 = settings?.relance_delai_n3 ?? 31;
+  if (!echeance) return 2;
+  const now = new Date();
+  const ech = new Date(echeance + "T00:00:00");
+  const diff = Math.floor((now.getTime() - ech.getTime()) / 86400000);
+  if (diff < 0 && Math.abs(diff) <= delaiN1) return 1;
+  if (diff >= 0 && diff < delaiN3) return 2;
+  if (diff >= delaiN3) return 3;
+  return 2;
+}
+
 function FactureDetail() {
   const { id } = Route.useParams();
   const navigate = useNavigate();
   const qc = useQueryClient();
   const { data: invoice, isLoading } = useInvoice(id);
   const { data: settings } = useSettings();
+  const { data: relances = [] } = useRelancesForInvoice(id);
   const [editing, setEditing] = useState(false);
+  const [sendingRelance, setSendingRelance] = useState(false);
 
   async function updateStatut(statut: string) {
     const { error } = await db.from("invoices").update({ statut }).eq("id", id);
@@ -461,6 +483,63 @@ function FactureDetail() {
     setTimeout(() => { win.print(); }, 500);
   }
 
+  async function sendRelance() {
+    if (!invoice) return;
+    const email = invoice.client?.email ?? "";
+    if (!email) { toast.error("Aucun email renseigné pour ce client"); return; }
+
+    const s = settings;
+    const nomSociete = s?.nom ?? "CITY DERAT";
+    const signature = s?.relance_signature ? `\n\n${s.relance_signature}` : `\n\nCordialement,\n${nomSociete}${s?.telephone ? `\nTél : ${s.telephone}` : ""}`;
+    const niveau = niveauRelance(invoice.echeance ?? null, settings);
+    const montant = formatEUR(invoice.total_ttc);
+    const numFac = `N°${invoice.numero}`;
+    const echeanceStr = invoice.echeance ? formatDateFR(invoice.echeance) : "—";
+    const iban = s?.iban ? `\n\nCoordonnées bancaires pour virement :\nIBAN : ${s.iban}${s.bic ? `\nBIC : ${s.bic}` : ""}` : "";
+
+    const now = new Date();
+    const daysLate = invoice.echeance
+      ? Math.floor((now.getTime() - new Date(invoice.echeance + "T00:00:00").getTime()) / 86400000)
+      : 0;
+
+    let objet = "";
+    let corps = "";
+
+    if (niveau === 1) {
+      objet = `Rappel : votre facture ${numFac} arrive à échéance le ${echeanceStr} — ${nomSociete}`;
+      corps = `Bonjour,\n\nNous vous contactons pour vous rappeler que la facture ${numFac} d'un montant de ${montant} arrive à échéance le ${echeanceStr}.\n\nNous vous remercions par avance d'effectuer le règlement avant cette date.${iban}${signature}`;
+    } else if (niveau === 2) {
+      objet = `Relance : facture ${numFac} en attente de règlement depuis ${daysLate} jour${daysLate > 1 ? "s" : ""} — ${nomSociete}`;
+      corps = `Bonjour,\n\nSauf erreur de notre part, la facture ${numFac} d'un montant de ${montant}, dont l'échéance était fixée au ${echeanceStr}, reste à ce jour impayée.\n\nNous vous demandons de bien vouloir procéder au règlement dans les meilleurs délais.${iban}${signature}`;
+    } else {
+      objet = `MISE EN DEMEURE : facture ${numFac} — règlement immédiat requis — ${nomSociete}`;
+      corps = `Bonjour,\n\nMalgré nos relances, la facture ${numFac} d'un montant de ${montant}, échue depuis ${daysLate} jours (date d'échéance : ${echeanceStr}), demeure impayée.\n\nNous vous mettons en demeure de procéder au règlement immédiat de cette somme.\n\nÀ défaut de paiement sous 8 jours, nous nous verrons contraints d'engager une procédure de recouvrement, entraînant des frais supplémentaires à votre charge (pénalités de retard, indemnité forfaitaire de 40 € conformément à l'Art. L441-10 du Code de commerce).${iban}${signature}`;
+    }
+
+    setSendingRelance(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const today = new Date();
+      const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+      await db.from("relances").insert({
+        user_id: user.id,
+        facture_id: id,
+        niveau,
+        date_envoi: dateStr,
+        notes: `Niveau ${niveau} — ${NIVEAU_LABELS[niveau].label}`,
+      });
+      qc.invalidateQueries({ queryKey: ["relances"] });
+      qc.invalidateQueries({ queryKey: ["relances", id] });
+      toast.success(`Relance niveau ${niveau} enregistrée`);
+    } finally {
+      setSendingRelance(false);
+    }
+
+    const mailto = `mailto:${email}?subject=${encodeURIComponent(objet)}&body=${encodeURIComponent(corps)}`;
+    setTimeout(() => { window.location.href = mailto; }, 300);
+  }
+
   function sendEmail() {
     if (!invoice) return;
     const s = settings;
@@ -578,6 +657,68 @@ function FactureDetail() {
           <div className="flex justify-between text-base font-bold border-t pt-2"><span>Total TTC</span><span className="text-primary">{formatEUR(invoice.total_ttc)}</span></div>
         </div>
       </CardContent></Card>
+
+      {/* Relances */}
+      {invoice.statut !== "payee" && invoice.statut !== "brouillon" && (
+        <Card><CardContent className="p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <Bell className="h-4 w-4 text-accent shrink-0" />
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Relances</h2>
+          </div>
+
+          {/* Historique */}
+          {relances.length > 0 && (
+            <div className="space-y-1.5">
+              {relances.map((r) => (
+                <div key={r.id} className="flex items-center justify-between gap-2 rounded-lg bg-muted/30 px-3 py-2 text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className={cn("font-bold", NIVEAU_LABELS[r.niveau]?.color)}>
+                      Niv. {r.niveau}
+                    </span>
+                    <span className="text-muted-foreground">{NIVEAU_LABELS[r.niveau]?.label}</span>
+                  </div>
+                  <span className="flex items-center gap-1 text-muted-foreground shrink-0">
+                    <Clock className="h-3 w-3" />{formatDateFR(r.date_envoi)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Bouton relance */}
+          {invoice.client?.email ? (() => {
+            const niv = niveauRelance(invoice.echeance ?? null, settings);
+            const info = NIVEAU_LABELS[niv];
+            return (
+              <div className="space-y-1">
+                <Button
+                  onClick={sendRelance}
+                  disabled={sendingRelance}
+                  className={cn(
+                    "w-full gap-2",
+                    niv === 3 ? "bg-destructive hover:bg-destructive/90 text-white" :
+                    niv === 2 ? "bg-orange-600 hover:bg-orange-700 text-white" :
+                    "bg-amber-500 hover:bg-amber-600 text-white"
+                  )}
+                >
+                  <Mail className="h-4 w-4" />
+                  {sendingRelance ? "Envoi…" : `Envoyer — Niveau ${niv} (${info.label})`}
+                </Button>
+                <p className="text-[10px] text-muted-foreground text-center">
+                  {niv === 1 && "Rappel doux avant échéance"}
+                  {niv === 2 && "Relance ferme mais courtoise"}
+                  {niv === 3 && "Mise en demeure — ton urgent"}
+                  {relances.length > 0 && ` · ${relances.length} relance${relances.length > 1 ? "s" : ""} déjà envoyée${relances.length > 1 ? "s" : ""}`}
+                </p>
+              </div>
+            );
+          })() : (
+            <p className="text-xs text-muted-foreground italic">
+              Aucun email client — <Link to="/clients/$id" params={{ id: invoice.client_id }} className="underline">Ajouter l'email du client</Link>
+            </p>
+          )}
+        </CardContent></Card>
+      )}
 
       <Button onClick={exportPDF} className="w-full bg-accent hover:bg-accent/90 text-accent-foreground">
         <Download className="mr-2 h-4 w-4" /> Télécharger / Imprimer PDF

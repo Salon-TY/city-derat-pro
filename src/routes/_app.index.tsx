@@ -1,13 +1,14 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useDashboardStats, useSettings } from "@/lib/queries";
+import { useDashboardStats, useSettings, useRelances } from "@/lib/queries";
 import { formatEUR, formatDateFR } from "@/lib/schemas";
 import {
   ClipboardList, Euro, AlertCircle, Plus, UserPlus, FileText,
-  TrendingUp, TrendingDown, Minus, Phone, AlertTriangle, Package, MapPin, FileCheck
+  TrendingUp, TrendingDown, Minus, Phone, AlertTriangle, Package, MapPin, FileCheck, Bell
 } from "lucide-react";
 import { useQuotes } from "@/lib/queries";
+import { useMemo } from "react";
 
 export const Route = createFileRoute("/_app/")({
   head: () => ({ meta: [{ title: "Tableau de bord — CITY DERAT" }] }),
@@ -18,8 +19,22 @@ function Dashboard() {
   const { data: stats, isLoading } = useDashboardStats();
   const { data: settings } = useSettings();
   const { data: devis = [] } = useQuotes();
+  const { data: relances = [] } = useRelances();
   const navigate = useNavigate();
   const devisEnAttente = devis.filter((d) => d.statut === "brouillon" || d.statut === "envoye").length;
+
+  const delaiN3 = settings?.relance_delai_n3 ?? 31;
+  // Factures overdue >= N3 days without a niveau 3 relance sent
+  const relancesN3Set = useMemo(() => {
+    const s = new Set<string>();
+    for (const r of relances) if (r.niveau === 3) s.add(r.facture_id);
+    return s;
+  }, [relances]);
+  const miseEnDemeure = useMemo(() => {
+    return (stats?.overdueInvoices ?? []).filter(
+      (inv: any) => inv.daysLate >= delaiN3 && !relancesN3Set.has(inv.id)
+    );
+  }, [stats, delaiN3, relancesN3Set]);
 
   const objectif = settings?.objectif_ca_mensuel ?? 3000;
   const caMonth = stats?.caMonth ?? 0;
@@ -179,6 +194,34 @@ function Dashboard() {
             ))}
           </div>
         </section>
+      )}
+
+      {/* Alerte mise en demeure : factures ≥ N3 jours sans relance niveau 3 */}
+      {!isLoading && miseEnDemeure.length > 0 && (
+        <Card className="border-destructive bg-destructive/10">
+          <CardContent className="p-3 flex items-start gap-2">
+            <Bell className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
+            <div className="text-sm flex-1">
+              <span className="font-semibold text-destructive">
+                {miseEnDemeure.length} facture{miseEnDemeure.length > 1 ? "s" : ""} nécessite{miseEnDemeure.length > 1 ? "nt" : ""} une mise en demeure
+              </span>
+              <p className="text-xs text-destructive/80 mt-0.5">Plus de {delaiN3} jours de retard sans relance niveau 3.</p>
+              <ul className="mt-1 space-y-1">
+                {miseEnDemeure.map((inv: any) => (
+                  <li key={inv.id} className="flex items-center justify-between gap-2">
+                    <span className="text-xs text-destructive/80 truncate">
+                      {(inv.client as any)?.raison_sociale ?? "—"} — {formatEUR(inv.total_ttc)} ({inv.daysLate}j)
+                    </span>
+                    <Link to="/factures/$id" params={{ id: inv.id }}
+                      className="shrink-0 text-[10px] font-semibold text-destructive underline">
+                      Envoyer maintenant
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* Alertes factures en retard > 7 jours (rouge) */}

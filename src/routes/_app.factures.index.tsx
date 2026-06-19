@@ -5,7 +5,7 @@ import { z } from "zod";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useInvoices } from "@/lib/queries";
+import { useInvoices, useRelances } from "@/lib/queries";
 import { formatEUR, formatDateFR, STATUTS_FACTURE } from "@/lib/schemas";
 import { Plus, FileText, Search, Filter, X } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -59,7 +59,17 @@ function getPeriodDates(period: string): { start: string; end: string } | null {
 
 function FacturesPage() {
   const { data: invoices = [], isLoading } = useInvoices();
+  const { data: relances = [] } = useRelances();
   const { statut: statutParam } = Route.useSearch();
+
+  // Build per-invoice relance index
+  const relancedSet = useMemo(() => {
+    const s = new Set<string>();
+    for (const r of relances) s.add(r.facture_id);
+    return s;
+  }, [relances]);
+
+  const today = new Date().toISOString().slice(0, 10);
   const navigate = Route.useNavigate();
   const qc = useQueryClient();
 
@@ -257,11 +267,19 @@ function FacturesPage() {
                     <div className="text-sm text-muted-foreground truncate">{(inv.client as any)?.raison_sociale ?? "—"}</div>
                     <div className="text-xs text-muted-foreground">{formatDateFR(inv.date_facture)}{inv.echeance ? ` · éch. ${formatDateFR(inv.echeance)}` : ""}</div>
                   </div>
-                  <div className="text-right shrink-0">
+                  <div className="text-right shrink-0 space-y-1">
                     <div className="font-bold text-lg">{formatEUR(inv.total_ttc)}</div>
                     <span className={cn("text-[10px] font-medium uppercase rounded-full px-2 py-0.5", STATUT_COLORS[inv.statut] ?? "bg-muted")}>
                       {statutLabel(inv.statut)}
                     </span>
+                    {/* Relance badges */}
+                    {(inv.statut === "retard" || inv.statut === "envoyee") && (
+                      relancedSet.has(inv.id)
+                        ? <div className="inline-flex items-center rounded-full bg-blue-100 text-blue-700 text-[9px] font-semibold px-2 py-0.5 ml-1">Relancé</div>
+                        : inv.echeance && inv.echeance < today
+                          ? <div className="inline-flex items-center rounded-full bg-destructive/15 text-destructive text-[9px] font-semibold px-2 py-0.5 ml-1">À relancer</div>
+                          : null
+                    )}
                   </div>
                 </div>
                 <div className="flex gap-2 flex-wrap">
