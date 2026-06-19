@@ -460,7 +460,7 @@ export function InterventionForm({
               <div key={nom} className="flex items-center justify-between gap-2 rounded-lg bg-accent/5 border border-accent/20 px-3 py-2 text-xs">
                 <span className="text-muted-foreground">💡 « {nom} » est souvent utilisé.</span>
                 <Link
-                  to="/stock" as any
+                  to={"/stock" as any}
                   className="shrink-0 text-accent underline font-medium"
                 >
                   Ajouter au stock

@@ -41,7 +41,7 @@ export const clientSchema = z.object({
   raison_sociale: z.string().trim().min(1, "Requis").max(200),
   adresse_site: z.string().max(500).default(""),
   telephone: z.string().max(50).default(""),
-  email: z.string().email("Email invalide").min(1, "Email requis pour l'envoi des rapports"),
+  email: z.string().email("Email invalide").or(z.literal("")).default(""),
   siret: z.string().max(50).default(""),
   type_nuisible: z.string().max(100).default(""),
   notes: z.string().max(2000).default(""),

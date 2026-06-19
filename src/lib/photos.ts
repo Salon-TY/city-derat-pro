@@ -30,17 +30,17 @@ async function compressImage(file: File): Promise<Blob> {
   });
 }
 
-async function ensureBucket(name: string) {
+async function ensureBucket(name: string): Promise<boolean> {
   const { data: buckets } = await supabase.storage.listBuckets();
-  if (buckets?.some((b) => b.name === name)) return;
+  if (buckets?.some((b) => b.name === name)) return true;
   const { error } = await supabase.storage.createBucket(name, {
     public: true,
     fileSizeLimit: 10 * 1024 * 1024,
     allowedMimeTypes: ["image/jpeg", "image/png", "image/webp", "image/heic"],
   });
-  if (error && !error.message.includes("already exists")) {
-    console.error(`[photos] Failed to create bucket ${name}:`, error.message);
-  }
+  if (!error || error.message.toLowerCase().includes("already exist")) return true;
+  console.error(`[photos] Bucket "${name}" inaccessible :`, error.message);
+  return false;
 }
 
 export async function uploadInterventionPhotos(
@@ -48,7 +48,11 @@ export async function uploadInterventionPhotos(
   userId: string,
 ): Promise<string[]> {
   if (photos.length === 0) return [];
-  await ensureBucket(BUCKET);
+  const ok = await ensureBucket(BUCKET);
+  if (!ok) {
+    toast.error("Dossier photos inaccessible. Créez le bucket « intervention-photos » dans Supabase > Storage.");
+    return [];
+  }
   const urls: string[] = [];
   for (const { file } of photos) {
     const compressed = await compressImage(file);
@@ -71,7 +75,11 @@ export async function deleteInterventionPhoto(url: string) {
 }
 
 export async function uploadSignature(blob: Blob, userId: string): Promise<string | null> {
-  await ensureBucket(SIG_BUCKET);
+  const ok = await ensureBucket(SIG_BUCKET);
+  if (!ok) {
+    toast.error("Dossier signatures inaccessible. Créez le bucket « intervention-signatures » dans Supabase > Storage.");
+    return null;
+  }
   const path = `${userId}/${Date.now()}.png`;
   const { error } = await supabase.storage.from(SIG_BUCKET).upload(path, blob, {
     cacheControl: "3600",
@@ -97,7 +105,11 @@ function extractPath(url: string, bucket: string): string | null {
 const LOGO_BUCKET = "company-logos";
 
 export async function uploadCompanyLogo(file: File, userId: string): Promise<string | null> {
-  await ensureBucket(LOGO_BUCKET);
+  const ok = await ensureBucket(LOGO_BUCKET);
+  if (!ok) {
+    toast.error("Dossier logos inaccessible. Créez le bucket « company-logos » dans Supabase > Storage > New bucket.");
+    return null;
+  }
   const ext = file.name.split(".").pop() ?? "jpg";
   const path = `${userId}/logo.${ext}`;
   const compressed = await compressImage(file);

@@ -36,12 +36,13 @@ function statutLabel(v: string) {
 
 function getPeriodDates(period: string): { start: string; end: string } | null {
   const now = new Date();
-  const today = now.toISOString().slice(0, 10);
+  const localDate = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const today = localDate(now);
   if (period === "week") {
     const dow = now.getDay();
     const ws = new Date(now);
     ws.setDate(now.getDate() - (dow === 0 ? 6 : dow - 1));
-    return { start: ws.toISOString().slice(0, 10), end: today };
+    return { start: localDate(ws), end: today };
   }
   if (period === "month") {
     return { start: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`, end: today };
@@ -69,7 +70,8 @@ function FacturesPage() {
     return s;
   }, [relances]);
 
-  const today = new Date().toISOString().slice(0, 10);
+  const _now = new Date();
+  const today = `${_now.getFullYear()}-${String(_now.getMonth() + 1).padStart(2, "0")}-${String(_now.getDate()).padStart(2, "0")}`;
   const navigate = Route.useNavigate();
   const qc = useQueryClient();
 

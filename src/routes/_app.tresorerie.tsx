@@ -119,7 +119,6 @@ function useTresorerieData(period: Period) {
   });
 }
 
-const NIVEAU_RELANCE_LABELS = ["", "Rappel", "Amiable", "Mise en demeure"] as const;
 const NIVEAU_RELANCE_COLORS = ["", "text-amber-600 bg-amber-50", "text-orange-600 bg-orange-50", "text-destructive bg-destructive/10"] as const;
 
 function niveauRelanceFromDays(daysLate: number, settings: any): 1 | 2 | 3 {
