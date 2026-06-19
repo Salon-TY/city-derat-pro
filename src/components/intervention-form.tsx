@@ -1,6 +1,6 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import {
   interventionSchema,
   type InterventionForm as IFType,
@@ -17,6 +17,11 @@ export type StockUsageItem = {
   quantite: number;
   unite: string;
 };
+
+type UnifiedItem =
+  | { kind: "stock"; product_id: string; nom: string; quantite: number; unite: string; stock_actuel: number }
+  | { kind: "free"; id: string; nom: string; quantite_text: string };
+
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -34,6 +39,7 @@ import {
 } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
 import { Camera, Plus, UserPlus, X } from "lucide-react";
+import { Link } from "@tanstack/react-router";
 
 // Cases à cocher rapport rapide — label court + phrase complète dans les observations
 const RAPPORT_ITEMS = [
@@ -69,13 +75,58 @@ export function InterventionForm({
   const [newClientAdresse, setNewClientAdresse] = useState("");
   const [creatingClient, setCreatingClient] = useState(false);
   const [rapportChecks, setRapportChecks] = useState<string[]>([]);
-  const [stockUsage, setStockUsage] = useState<StockUsageItem[]>([]);
+  // ─── Unified product list (stock + free) ────────────────────────────────────
+  const [items, setItems] = useState<UnifiedItem[]>([]);
+
+  // Mode A — stock picker
   const [pickedProductId, setPickedProductId] = useState("");
   const [pickedQty, setPickedQty] = useState<number>(1);
-
   const pickedProduct = stockProducts.find((p) => p.id === pickedProductId);
   const isVolume = pickedProduct?.type_gestion === "volume";
-  const stockAfter = pickedProduct ? Math.max(0, pickedProduct.quantite - pickedQty) : null;
+  const stockAfter = pickedProduct
+    ? Math.max(0, pickedProduct.quantite - pickedQty)
+    : null;
+
+  // Mode B — free product
+  const [showFreeForm, setShowFreeForm] = useState(false);
+  const [freeNom, setFreeNom] = useState("");
+  const [freeQty, setFreeQty] = useState("");
+  const [showAutoList, setShowAutoList] = useState(false);
+  const freeInputRef = useRef<HTMLInputElement>(null);
+
+  // Autocomplete — unique product names from previous interventions
+  const [freeSuggestions, setFreeSuggestions] = useState<{ nom: string; count: number }[]>([]);
+  useEffect(() => {
+    import("@/lib/db").then(({ db }) => {
+      db.from("interventions").select("produits").then(({ data }) => {
+        const counts = new Map<string, number>();
+        for (const row of data ?? []) {
+          if (!row.produits) continue;
+          const parts = (row.produits as string).split(/[,\n]/).map((s) => s.trim()).filter(Boolean);
+          for (const p of parts) {
+            const nom = p.replace(/\s*[x×][\d.,]+.*$/i, "").trim();
+            if (nom.length > 1) counts.set(nom, (counts.get(nom) ?? 0) + 1);
+          }
+        }
+        setFreeSuggestions(
+          [...counts.entries()]
+            .map(([nom, count]) => ({ nom, count }))
+            .sort((a, b) => b.count - a.count)
+        );
+      });
+    });
+  }, []);
+
+  const freeAutoComplete = freeSuggestions.filter(
+    (s) => freeNom.length >= 2 && s.nom.toLowerCase().includes(freeNom.toLowerCase()) && s.nom !== freeNom
+  ).slice(0, 5);
+
+  // Names of free items with ≥3 historical uses → suggest adding to stock
+  const stockSuggestions = items
+    .filter((i): i is Extract<UnifiedItem, { kind: "free" }> => i.kind === "free")
+    .map((i) => freeSuggestions.find((s) => s.nom === i.nom))
+    .filter((s): s is { nom: string; count: number } => !!s && s.count >= 3)
+    .map((s) => s.nom);
   const [photos, setPhotos] = useState<PhotoFile[]>([]);
 
   const form = useForm<IFType>({
@@ -151,19 +202,44 @@ export function InterventionForm({
     if (!product) return;
     const qty = Number(pickedQty);
     if (!qty || qty <= 0) { toast.error("Quantité invalide"); return; }
-    setStockUsage((prev) => {
-      const existing = prev.find((i) => i.product_id === pickedProductId);
+    setItems((prev) => {
+      const existing = prev.find((i) => i.kind === "stock" && i.product_id === pickedProductId);
       if (existing) {
-        return prev.map((i) => i.product_id === pickedProductId ? { ...i, quantite: i.quantite + qty } : i);
+        return prev.map((i) =>
+          i.kind === "stock" && i.product_id === pickedProductId
+            ? { ...i, quantite: i.quantite + qty }
+            : i
+        );
       }
-      return [...prev, { product_id: product.id, nom: product.nom, quantite: qty, unite: product.unite }];
+      return [...prev, {
+        kind: "stock",
+        product_id: product.id,
+        nom: product.nom,
+        quantite: qty,
+        unite: product.unite,
+        stock_actuel: product.quantite,
+      }];
     });
     setPickedProductId("");
     setPickedQty(product.type_gestion === "volume" ? 0.5 : 1);
   }
 
-  function removeStockItem(product_id: string) {
-    setStockUsage((prev) => prev.filter((i) => i.product_id !== product_id));
+  function addFreeItem() {
+    if (!freeNom.trim()) { toast.error("Nom du produit requis"); return; }
+    setItems((prev) => [
+      ...prev,
+      { kind: "free", id: `free-${Date.now()}`, nom: freeNom.trim(), quantite_text: freeQty.trim() },
+    ]);
+    setFreeNom("");
+    setFreeQty("");
+    setShowFreeForm(false);
+    setShowAutoList(false);
+  }
+
+  function removeItem(key: string) {
+    setItems((prev) => prev.filter((i) =>
+      i.kind === "stock" ? i.product_id !== key : i.id !== key
+    ));
   }
 
   function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -186,10 +262,19 @@ export function InterventionForm({
   }
 
   function handleSubmitWithStock(values: IFType) {
-    const produitsSerialized = stockUsage.length > 0
-      ? stockUsage.map((i) => `${i.nom} x${i.quantite} ${i.unite}`).join(", ")
+    const stockItems: StockUsageItem[] = items
+      .filter((i): i is Extract<UnifiedItem, { kind: "stock" }> => i.kind === "stock")
+      .map((i) => ({ product_id: i.product_id, nom: i.nom, quantite: i.quantite, unite: i.unite }));
+
+    const produitsSerialized = items.length > 0
+      ? items.map((i) =>
+          i.kind === "stock"
+            ? `${i.nom} ×${i.quantite} ${i.unite}`
+            : `${i.nom}${i.quantite_text ? ` (${i.quantite_text})` : ""}`
+        ).join(", ")
       : values.produits;
-    return onSubmit({ ...values, produits: produitsSerialized, quantite: "" }, stockUsage, photos);
+
+    return onSubmit({ ...values, produits: produitsSerialized, quantite: "" }, stockItems, photos);
   }
 
   return (
@@ -324,36 +409,93 @@ export function InterventionForm({
         </Field>
       </div>
 
+      {/* ─── Produits utilisés (hybride stock + libre) ─────────────────────── */}
       <div className="space-y-1.5">
         <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Produits utilisés</Label>
-        {stockProducts.length === 0 ? (
-          <Input {...form.register("produits")} placeholder="Ex. Brodifacoum…" />
-        ) : (
-          <Card className="border-border">
-            <CardContent className="p-3 space-y-2">
-              {/* Sélecteur */}
+        <Card className="border-border">
+          <CardContent className="p-3 space-y-3">
+
+            {/* Liste unifiée des produits ajoutés */}
+            {items.length > 0 && (
               <div className="space-y-1.5">
-                <Select value={pickedProductId} onValueChange={(v) => {
-                  setPickedProductId(v);
-                  const p = stockProducts.find((x) => x.id === v);
-                  setPickedQty(p?.type_gestion === "volume" ? 0.5 : 1);
-                }}>
+                {items.map((item) => (
+                  <div
+                    key={item.kind === "stock" ? item.product_id : item.id}
+                    className="flex items-start gap-2 rounded-md bg-muted/40 px-2 py-1.5 text-sm"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="font-medium">{item.nom}</span>
+                        {item.kind === "stock" && (
+                          <>
+                            <span className="text-muted-foreground">× {item.quantite} {item.unite}</span>
+                            <span className="rounded-full bg-primary/15 text-primary text-[9px] font-semibold px-1.5 py-0.5 shrink-0">Stock</span>
+                          </>
+                        )}
+                        {item.kind === "free" && item.quantite_text && (
+                          <span className="text-muted-foreground">— {item.quantite_text}</span>
+                        )}
+                      </div>
+                      {item.kind === "stock" && (
+                        <p className={`text-[10px] mt-0.5 ${item.quantite > item.stock_actuel ? "text-destructive" : "text-muted-foreground"}`}>
+                          Stock après déduction : {Math.max(0, item.stock_actuel - item.quantite)} {item.unite}
+                          {item.quantite > item.stock_actuel && " ⚠️"}
+                        </p>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => removeItem(item.kind === "stock" ? item.product_id : item.id)}
+                      className="text-destructive/60 hover:text-destructive shrink-0 mt-0.5"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Suggestion "Ajouter au stock" pour produits libres fréquents */}
+            {stockSuggestions.map((nom) => (
+              <div key={nom} className="flex items-center justify-between gap-2 rounded-lg bg-accent/5 border border-accent/20 px-3 py-2 text-xs">
+                <span className="text-muted-foreground">💡 « {nom} » est souvent utilisé.</span>
+                <Link
+                  to="/stock" as any
+                  className="shrink-0 text-accent underline font-medium"
+                >
+                  Ajouter au stock
+                </Link>
+              </div>
+            ))}
+
+            {/* ── MODE A : Produit du stock ──────────────────────────────── */}
+            {stockProducts.length > 0 && (
+              <div className="space-y-1.5">
+                <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">Depuis le stock</div>
+                <Select
+                  value={pickedProductId}
+                  onValueChange={(v) => {
+                    setPickedProductId(v);
+                    const p = stockProducts.find((x) => x.id === v);
+                    setPickedQty(p?.type_gestion === "volume" ? 0.5 : 1);
+                  }}
+                >
                   <SelectTrigger className="h-8 text-sm">
-                    <SelectValue placeholder="Choisir un produit…" />
+                    <SelectValue placeholder="Choisir un produit du stock…" />
                   </SelectTrigger>
                   <SelectContent>
                     {stockProducts.map((p) => (
                       <SelectItem key={p.id} value={p.id}>
-                        {p.nom} ({p.quantite} {p.unite} dispo)
+                        {p.nom} — {p.quantite} {p.unite} dispo
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
                 {pickedProductId && (
                   <div className="space-y-1">
-                    <label className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                    <label className="text-[10px] text-muted-foreground">
                       {isVolume
-                        ? `Quantité consommée (${pickedProduct?.unite ?? "L ou ml"}) — saisir la quantité exacte utilisée`
+                        ? `Quantité consommée (${pickedProduct?.unite ?? "L/ml"}) — quantité exacte utilisée`
                         : `Quantité (boîtes / unités)`}
                     </label>
                     <div className="flex gap-2">
@@ -374,33 +516,74 @@ export function InterventionForm({
                         Stock actuel : {pickedProduct.quantite} {pickedProduct.unite}
                         {" → sera : "}
                         <span className="font-medium">{stockAfter} {pickedProduct.unite}</span>
-                        {pickedQty > pickedProduct.quantite && " ⚠️ stock insuffisant"}
+                        {pickedQty > pickedProduct.quantite && " ⚠️ insuffisant"}
                       </p>
                     )}
                   </div>
                 )}
               </div>
+            )}
 
-              {/* Liste sélectionnée */}
-              {stockUsage.length > 0 && (
-                <div className="space-y-1">
-                  {stockUsage.map((item) => (
-                    <div key={item.product_id} className="flex items-center justify-between rounded-md bg-muted/40 px-2 py-1 text-sm">
-                      <span>{item.nom} <span className="text-muted-foreground font-medium">× {item.quantite} {item.unite}</span></span>
-                      <button type="button" onClick={() => removeStockItem(item.product_id)} className="text-destructive hover:text-destructive/80 ml-2">
-                        <X className="h-3.5 w-3.5" />
-                      </button>
+            {/* ── MODE B : Produit libre ─────────────────────────────────── */}
+            {showFreeForm ? (
+              <div className="space-y-2 rounded-lg border border-dashed border-muted-foreground/30 p-2.5">
+                <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">Produit libre (sans suivi stock)</div>
+                <div className="relative">
+                  <Input
+                    ref={freeInputRef}
+                    placeholder="Nom du produit…"
+                    value={freeNom}
+                    onChange={(e) => { setFreeNom(e.target.value); setShowAutoList(true); }}
+                    onFocus={() => setShowAutoList(true)}
+                    onBlur={() => setTimeout(() => setShowAutoList(false), 150)}
+                    className="h-8 text-sm"
+                  />
+                  {showAutoList && freeAutoComplete.length > 0 && (
+                    <div className="absolute top-full left-0 right-0 z-10 mt-0.5 rounded-lg border bg-card shadow-lg overflow-hidden">
+                      {freeAutoComplete.map((s) => (
+                        <button
+                          key={s.nom}
+                          type="button"
+                          className="w-full text-left px-3 py-1.5 text-sm hover:bg-muted flex items-center justify-between"
+                          onMouseDown={() => { setFreeNom(s.nom); setShowAutoList(false); }}
+                        >
+                          <span>{s.nom}</span>
+                          <span className="text-[10px] text-muted-foreground">{s.count}×</span>
+                        </button>
+                      ))}
                     </div>
-                  ))}
+                  )}
                 </div>
-              )}
+                <Input
+                  placeholder="Quantité (optionnel, ex: 2 sachets, ~50 ml…)"
+                  value={freeQty}
+                  onChange={(e) => setFreeQty(e.target.value)}
+                  className="h-8 text-sm"
+                />
+                <div className="flex gap-2">
+                  <Button type="button" variant="outline" size="sm" className="flex-1 h-7 text-xs" onClick={() => { setShowFreeForm(false); setFreeNom(""); setFreeQty(""); }}>
+                    Annuler
+                  </Button>
+                  <Button type="button" size="sm" className="flex-1 h-7 text-xs" onClick={addFreeItem}>
+                    Ajouter
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => { setShowFreeForm(true); setTimeout(() => freeInputRef.current?.focus(), 50); }}
+                className="flex w-full items-center gap-1.5 rounded-lg border border-dashed border-muted-foreground/30 px-3 py-2 text-xs text-muted-foreground hover:border-muted-foreground/60 hover:text-foreground transition-colors"
+              >
+                <Plus className="h-3.5 w-3.5 shrink-0" /> Produit libre (sans suivi stock)
+              </button>
+            )}
 
-              {stockUsage.length === 0 && (
-                <p className="text-xs text-muted-foreground">Aucun produit sélectionné</p>
-              )}
-            </CardContent>
-          </Card>
-        )}
+            {items.length === 0 && !showFreeForm && !pickedProductId && (
+              <p className="text-xs text-muted-foreground text-center">Aucun produit ajouté</p>
+            )}
+          </CardContent>
+        </Card>
       </div>
 
       {/* Cases à cocher rapport rapide */}

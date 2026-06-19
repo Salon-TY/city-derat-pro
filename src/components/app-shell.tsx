@@ -1,7 +1,8 @@
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import {
   LayoutDashboard, Users, ClipboardList, FileText, FileSignature,
-  Settings, LogOut, Bug, Plus, Package, Search, X, TrendingUp, FileCheck
+  Settings, LogOut, Bug, Plus, Package, Search, X, TrendingUp, FileCheck,
+  MoreHorizontal, BarChart2
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
@@ -11,15 +12,20 @@ import { db } from "@/lib/db";
 import { formatEUR, formatDateFR, TYPES_INTERVENTION } from "@/lib/schemas";
 import { useClients, useSettings } from "@/lib/queries";
 
-const navItems = [
+const mainNavItems = [
   { to: "/", label: "Accueil", icon: LayoutDashboard, exact: true },
   { to: "/clients", label: "Clients", icon: Users },
   { to: "/interventions", label: "Terrain", icon: ClipboardList },
-  { to: "/tresorerie", label: "Tréso", icon: TrendingUp },
-  { to: "/stock", label: "Stock", icon: Package },
   { to: "/factures", label: "Factures", icon: FileText },
+];
+
+const moreNavItems = [
   { to: "/devis", label: "Devis", icon: FileCheck },
+  { to: "/tresorerie", label: "Trésorerie", icon: TrendingUp },
+  { to: "/stock", label: "Stock", icon: Package },
   { to: "/contrats", label: "Contrats", icon: FileSignature },
+  { to: "/stats", label: "Statistiques", icon: BarChart2 },
+  { to: "/parametres", label: "Paramètres", icon: Settings },
 ];
 
 type SearchResult = {
@@ -321,6 +327,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const qc = useQueryClient();
   const [fabOpen, setFabOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
   const { data: settings } = useSettings();
 
   async function handleSignOut() {
@@ -401,7 +408,49 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </button>
       </div>
 
-      {/* Bottom navigation premium */}
+      {/* Menu "Plus" — drawer depuis le bas */}
+      {moreOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
+          onClick={() => setMoreOpen(false)}
+        >
+          <div
+            className="absolute bottom-0 inset-x-0 bg-card rounded-t-2xl shadow-2xl overflow-hidden"
+            style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-5 py-3 border-b">
+              <span className="text-sm font-semibold">Plus</span>
+              <button onClick={() => setMoreOpen(false)} className="grid h-8 w-8 place-items-center rounded-xl hover:bg-muted">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="grid grid-cols-3 gap-0 p-2">
+              {moreNavItems.map((item) => {
+                const Icon = item.icon;
+                const active = location.pathname === item.to || location.pathname.startsWith(item.to + "/");
+                return (
+                  <Link
+                    key={item.to}
+                    to={item.to as any}
+                    onClick={() => setMoreOpen(false)}
+                    className={`flex flex-col items-center gap-1.5 rounded-xl px-3 py-4 transition-colors ${
+                      active ? "bg-accent/10 text-accent" : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                    }`}
+                  >
+                    <div className={`grid h-10 w-10 place-items-center rounded-xl ${active ? "bg-accent/15" : "bg-muted"}`}>
+                      <Icon className={`h-5 w-5 ${active ? "stroke-[2.2]" : "stroke-[1.8]"}`} />
+                    </div>
+                    <span className={`text-xs font-medium ${active ? "font-bold" : ""}`}>{item.label}</span>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bottom navigation — 4 items + Plus */}
       <nav
         className="fixed bottom-0 inset-x-0 z-30 bg-card border-t border-border"
         style={{
@@ -409,8 +458,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           boxShadow: "0 -4px 24px rgba(0,0,0,0.08), 0 -1px 4px rgba(0,0,0,0.04)",
         }}
       >
-        <div className="mx-auto grid max-w-3xl grid-cols-8">
-          {navItems.map((item) => {
+        <div className="mx-auto grid max-w-3xl grid-cols-5">
+          {mainNavItems.map((item) => {
             const Icon = item.icon;
             const active = item.exact
               ? location.pathname === item.to
@@ -420,20 +469,35 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 key={item.to}
                 to={item.to as any}
                 className={`relative flex flex-col items-center justify-center gap-0.5 py-2.5 text-[9px] font-medium transition-all ${
-                  active
-                    ? "text-accent nav-active"
-                    : "text-muted-foreground hover:text-foreground"
+                  active ? "text-accent nav-active" : "text-muted-foreground hover:text-foreground"
                 }`}
               >
-                <div className={`grid h-8 w-8 place-items-center rounded-xl transition-all duration-200 ${
-                  active ? "bg-accent/12 scale-105" : ""
-                }`}>
+                <div className={`grid h-8 w-8 place-items-center rounded-xl transition-all duration-200 ${active ? "bg-accent/12 scale-105" : ""}`}>
                   <Icon className={`h-[18px] w-[18px] transition-all ${active ? "stroke-[2.5]" : "stroke-[1.8]"}`} />
                 </div>
                 <span className={active ? "font-bold" : ""}>{item.label}</span>
               </Link>
             );
           })}
+          {/* Bouton Plus */}
+          {(() => {
+            const moreActive = moreNavItems.some(
+              (item) => location.pathname === item.to || location.pathname.startsWith(item.to + "/")
+            );
+            return (
+              <button
+                onClick={() => setMoreOpen((v) => !v)}
+                className={`relative flex flex-col items-center justify-center gap-0.5 py-2.5 text-[9px] font-medium transition-all ${
+                  moreActive || moreOpen ? "text-accent" : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <div className={`grid h-8 w-8 place-items-center rounded-xl transition-all duration-200 ${(moreActive || moreOpen) ? "bg-accent/12 scale-105" : ""}`}>
+                  <MoreHorizontal className={`h-[18px] w-[18px] transition-all ${(moreActive || moreOpen) ? "stroke-[2.5]" : "stroke-[1.8]"}`} />
+                </div>
+                <span className={(moreActive || moreOpen) ? "font-bold" : ""}>Plus</span>
+              </button>
+            );
+          })()}
         </div>
       </nav>
     </div>
