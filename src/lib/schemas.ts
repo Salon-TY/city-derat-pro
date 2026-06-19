@@ -131,10 +131,13 @@ export const quoteSchema = z.object({
 });
 export type QuoteForm = z.infer<typeof quoteSchema>;
 
-export const UNITES_STOCK = ["kg", "L", "boîte", "unité"] as const;
+export const UNITES_STOCK = ["kg", "L", "ml", "boîte", "unité", "sachet"] as const;
+export const UNITES_VOLUME = ["L", "ml"] as const;
+export const UNITES_UNITE = ["kg", "boîte", "unité", "sachet"] as const;
 
 export const stockProductSchema = z.object({
   nom: z.string().trim().min(1, "Requis").max(200),
+  type_gestion: z.enum(["unite", "volume"]).default("unite"),
   unite: z.enum(UNITES_STOCK).default("unité"),
   quantite: z.coerce.number().min(0).max(1000000).default(0),
   seuil_alerte: z.coerce.number().min(0).max(1000000).default(0),

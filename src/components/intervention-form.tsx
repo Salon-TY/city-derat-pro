@@ -72,6 +72,10 @@ export function InterventionForm({
   const [stockUsage, setStockUsage] = useState<StockUsageItem[]>([]);
   const [pickedProductId, setPickedProductId] = useState("");
   const [pickedQty, setPickedQty] = useState<number>(1);
+
+  const pickedProduct = stockProducts.find((p) => p.id === pickedProductId);
+  const isVolume = pickedProduct?.type_gestion === "volume";
+  const stockAfter = pickedProduct ? Math.max(0, pickedProduct.quantite - pickedQty) : null;
   const [photos, setPhotos] = useState<PhotoFile[]>([]);
 
   const form = useForm<IFType>({
@@ -155,7 +159,7 @@ export function InterventionForm({
       return [...prev, { product_id: product.id, nom: product.nom, quantite: qty, unite: product.unite }];
     });
     setPickedProductId("");
-    setPickedQty(1);
+    setPickedQty(product.type_gestion === "volume" ? 0.5 : 1);
   }
 
   function removeStockItem(product_id: string) {
@@ -328,32 +332,53 @@ export function InterventionForm({
           <Card className="border-border">
             <CardContent className="p-3 space-y-2">
               {/* Sélecteur */}
-              <div className="flex gap-2">
-                <div className="flex-1">
-                  <Select value={pickedProductId} onValueChange={setPickedProductId}>
-                    <SelectTrigger className="h-8 text-sm">
-                      <SelectValue placeholder="Choisir un produit…" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {stockProducts.map((p) => (
-                        <SelectItem key={p.id} value={p.id}>
-                          {p.nom} <span className="text-muted-foreground">({p.quantite} {p.unite} dispo)</span>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <Input
-                  type="number"
-                  min="0.01"
-                  step="0.01"
-                  value={pickedQty}
-                  onChange={(e) => setPickedQty(Number(e.target.value))}
-                  className="h-8 w-20 text-sm"
-                />
-                <Button type="button" size="sm" className="h-8 px-3 shrink-0" onClick={addStockItem}>
-                  <Plus className="h-3.5 w-3.5" />
-                </Button>
+              <div className="space-y-1.5">
+                <Select value={pickedProductId} onValueChange={(v) => {
+                  setPickedProductId(v);
+                  const p = stockProducts.find((x) => x.id === v);
+                  setPickedQty(p?.type_gestion === "volume" ? 0.5 : 1);
+                }}>
+                  <SelectTrigger className="h-8 text-sm">
+                    <SelectValue placeholder="Choisir un produit…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {stockProducts.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.nom} ({p.quantite} {p.unite} dispo)
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {pickedProductId && (
+                  <div className="space-y-1">
+                    <label className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                      {isVolume
+                        ? `Quantité consommée (${pickedProduct?.unite ?? "L ou ml"}) — saisir la quantité exacte utilisée`
+                        : `Quantité (boîtes / unités)`}
+                    </label>
+                    <div className="flex gap-2">
+                      <Input
+                        type="number"
+                        min={isVolume ? "0.001" : "1"}
+                        step={isVolume ? "0.001" : "1"}
+                        value={pickedQty}
+                        onChange={(e) => setPickedQty(Number(e.target.value))}
+                        className="h-8 flex-1 text-sm"
+                      />
+                      <Button type="button" size="sm" className="h-8 px-3 shrink-0" onClick={addStockItem}>
+                        <Plus className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                    {stockAfter !== null && pickedProduct && (
+                      <p className={`text-[10px] ${pickedQty > pickedProduct.quantite ? "text-destructive font-semibold" : "text-muted-foreground"}`}>
+                        Stock actuel : {pickedProduct.quantite} {pickedProduct.unite}
+                        {" → sera : "}
+                        <span className="font-medium">{stockAfter} {pickedProduct.unite}</span>
+                        {pickedQty > pickedProduct.quantite && " ⚠️ stock insuffisant"}
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Liste sélectionnée */}

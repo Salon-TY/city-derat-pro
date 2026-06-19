@@ -26,14 +26,35 @@ function NewIntervention() {
     const { data: userRes } = await supabase.auth.getUser();
     const userId = userRes.user?.id ?? "";
 
-    // Upload photos first to get URLs
+    // Vérification stock avant enregistrement
+    const warnings: string[] = [];
+    for (const item of stockItems) {
+      const { data: current } = await db.from("stock_products").select("quantite, nom, unite").eq("id", item.product_id).maybeSingle();
+      if (current && Number(current.quantite) < item.quantite) {
+        warnings.push(`Stock insuffisant pour ${current.nom} : il reste seulement ${current.quantite} ${current.unite}`);
+      }
+    }
+    if (warnings.length > 0) {
+      const proceed = window.confirm(`⚠️ Attention :\n${warnings.join("\n")}\n\nContinuer quand même ?`);
+      if (!proceed) return;
+    }
+
+    // Upload photos
     const photoUrls = await uploadInterventionPhotos(photoFiles, userId);
+
+    const produits_utilises = stockItems.map((i) => ({
+      product_id: i.product_id,
+      nom: i.nom,
+      quantite: i.quantite,
+      unite: i.unite,
+    }));
 
     const payload = {
       ...values,
       date_prochain_passage: values.date_prochain_passage || null,
       user_id: userId,
       photos: photoUrls.length > 0 ? photoUrls : null,
+      produits_utilises: produits_utilises.length > 0 ? produits_utilises : [],
     };
     const { error } = await db.from("interventions").insert(payload);
     if (error) { toast.error(error.message); return; }
@@ -48,6 +69,7 @@ function NewIntervention() {
     }
     if (stockItems.length > 0) {
       qc.invalidateQueries({ queryKey: ["stock_products"] });
+      qc.invalidateQueries({ queryKey: ["product_stats"] });
     }
 
     qc.invalidateQueries({ queryKey: ["interventions"] });

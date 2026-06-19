@@ -13,7 +13,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Minus, AlertTriangle, Package, Trash2, Search, Filter, X } from "lucide-react";
 import { useStockProducts, type StockProduct } from "@/lib/queries";
-import { stockProductSchema, type StockProductForm, UNITES_STOCK, formatEUR } from "@/lib/schemas";
+import { stockProductSchema, type StockProductForm, UNITES_STOCK, UNITES_VOLUME, UNITES_UNITE, formatEUR } from "@/lib/schemas";
 import { supabase } from "@/integrations/supabase/client";
 import { db } from "@/lib/db";
 import { cn } from "@/lib/utils";
@@ -210,12 +210,21 @@ function ProductRow({ product }: { product: StockProduct }) {
                 </span>
               )}
             </div>
-            <div className="mt-1 text-sm text-muted-foreground">
-              <span className="font-medium text-foreground tabular-nums">{product.quantite}</span> {product.unite}
-              <span className="mx-1.5 opacity-50">·</span>
-              Seuil : <span className="tabular-nums">{product.seuil_alerte}</span>
-              <span className="mx-1.5 opacity-50">·</span>
-              {formatEUR(product.prix_achat_ht)} HT / {product.unite}
+            <div className="mt-1 text-sm text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-0.5">
+              <span className="font-medium text-foreground tabular-nums">{product.quantite}</span>
+              <span>{product.unite}</span>
+              <span className="opacity-50">·</span>
+              <span>Seuil : <span className="tabular-nums">{product.seuil_alerte}</span></span>
+              <span className="opacity-50">·</span>
+              <span>{formatEUR(product.prix_achat_ht)} HT/{product.unite}</span>
+              <span className={cn(
+                "rounded-full px-1.5 py-0.5 text-[9px] font-semibold",
+                product.type_gestion === "volume"
+                  ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+                  : "bg-muted text-muted-foreground"
+              )}>
+                {product.type_gestion === "volume" ? "Volume" : "Unité"}
+              </span>
             </div>
           </div>
           <div className="flex shrink-0 gap-1.5">
@@ -271,25 +280,62 @@ function DeleteProductButton({ id, nom }: { id: string; nom: string }) {
 function ProductForm({ onSubmit, submitting }: { onSubmit: (v: StockProductForm) => Promise<void> | void; submitting?: boolean }) {
   const form = useForm<StockProductForm>({
     resolver: zodResolver(stockProductSchema) as any,
-    defaultValues: { nom: "", unite: "unité", quantite: 0, seuil_alerte: 0, prix_achat_ht: 0 },
+    defaultValues: { nom: "", type_gestion: "unite", unite: "unité", quantite: 0, seuil_alerte: 0, prix_achat_ht: 0 },
   });
+  const typeGestion = form.watch("type_gestion");
+  const uniteOptions = typeGestion === "volume" ? UNITES_VOLUME : UNITES_UNITE;
+
+  // Reset unité quand on change le type
+  function handleTypeChange(v: "unite" | "volume") {
+    form.setValue("type_gestion", v);
+    form.setValue("unite", v === "volume" ? "L" : "unité");
+  }
+
   return (
     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
       <Field label="Nom du produit *" error={form.formState.errors.nom?.message}>
         <Input placeholder="Ex. Brodifacoum" {...form.register("nom")} />
       </Field>
+      <Field label="Type de gestion">
+        <div className="flex rounded-lg border border-border overflow-hidden">
+          {(["unite", "volume"] as const).map((t) => (
+            <button
+              key={t}
+              type="button"
+              onClick={() => handleTypeChange(t)}
+              className={cn(
+                "flex-1 py-2 text-xs font-medium transition-colors",
+                typeGestion === t
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-card text-muted-foreground hover:text-foreground"
+              )}
+            >
+              {t === "unite" ? "À l'unité" : "Liquide (volume)"}
+            </button>
+          ))}
+        </div>
+        {typeGestion === "volume" && (
+          <p className="text-[10px] text-muted-foreground mt-1">Produits liquides/dilués — quantité en L ou ml</p>
+        )}
+      </Field>
       <div className="grid grid-cols-2 gap-3">
         <Field label="Unité">
           <Select value={form.watch("unite")} onValueChange={(v) => form.setValue("unite", v as any)}>
             <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>{UNITES_STOCK.map((u) => <SelectItem key={u} value={u}>{u}</SelectItem>)}</SelectContent>
+            <SelectContent>{uniteOptions.map((u) => <SelectItem key={u} value={u}>{u}</SelectItem>)}</SelectContent>
           </Select>
         </Field>
-        <Field label="Quantité actuelle"><Input type="number" step="0.01" min="0" {...form.register("quantite")} /></Field>
+        <Field label="Quantité actuelle">
+          <Input type="number" step={typeGestion === "volume" ? "0.001" : "1"} min="0" {...form.register("quantite")} />
+        </Field>
       </div>
       <div className="grid grid-cols-2 gap-3">
-        <Field label="Seuil d'alerte"><Input type="number" step="0.01" min="0" {...form.register("seuil_alerte")} /></Field>
-        <Field label="Prix d'achat HT"><Input type="number" step="0.01" min="0" {...form.register("prix_achat_ht")} /></Field>
+        <Field label="Seuil d'alerte">
+          <Input type="number" step={typeGestion === "volume" ? "0.001" : "1"} min="0" {...form.register("seuil_alerte")} />
+        </Field>
+        <Field label="Prix d'achat HT">
+          <Input type="number" step="0.01" min="0" {...form.register("prix_achat_ht")} />
+        </Field>
       </div>
       <DialogFooter><Button type="submit" className="w-full" disabled={submitting}>Ajouter</Button></DialogFooter>
     </form>

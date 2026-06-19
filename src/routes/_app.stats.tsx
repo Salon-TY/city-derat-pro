@@ -1,8 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMonthlyStats } from "@/lib/queries";
+import { useMonthlyStats, useProductStats } from "@/lib/queries";
 import { formatEUR } from "@/lib/schemas";
 import { Card, CardContent } from "@/components/ui/card";
-import { TrendingUp, TrendingDown, Minus, UserPlus, ClipboardCheck, Euro, Trophy } from "lucide-react";
+import { TrendingUp, TrendingDown, Minus, UserPlus, ClipboardCheck, Euro, Trophy, Package } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import { cn } from "@/lib/utils";
 
@@ -13,6 +13,7 @@ export const Route = createFileRoute("/_app/stats")({
 
 function StatsPage() {
   const { data: stats, isLoading } = useMonthlyStats();
+  const { data: productStats = [] } = useProductStats();
 
   const caEvo = stats?.caEvolution;
   const caTrend = caEvo == null ? "flat" : caEvo > 0 ? "up" : caEvo < 0 ? "down" : "flat";
@@ -108,6 +109,44 @@ function StatsPage() {
                 </ResponsiveContainer>
               </div>
               <p className="text-[10px] text-muted-foreground text-right">Mois en cours en surbrillance</p>
+            </CardContent>
+          </Card>
+
+          {/* Produits les plus utilisés — 30 derniers jours */}
+          <Card>
+            <CardContent className="p-4 space-y-3">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
+                <Package className="h-4 w-4 text-accent" /> Produits les plus utilisés — 30 derniers jours
+              </h2>
+              {productStats.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Aucune consommation enregistrée via le sélecteur produits.</p>
+              ) : (
+                <div className="space-y-2">
+                  {productStats.slice(0, 8).map((p, i) => (
+                    <div key={p.id} className="flex items-center gap-3">
+                      <span className="text-xs font-bold text-muted-foreground w-4 shrink-0">#{i + 1}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-sm font-medium truncate">{p.nom}</span>
+                          <span className="text-xs text-muted-foreground shrink-0 tabular-nums">
+                            {p.total_qty} {p.unite}
+                          </span>
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          Coût : <span className="font-medium text-foreground">{formatEUR(p.cout_total)}</span>
+                          <span className="ml-1 opacity-60">({formatEUR(p.prix_achat_ht)} HT / {p.unite})</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  <div className="pt-1 border-t text-xs text-muted-foreground flex justify-between">
+                    <span>Coût total produits</span>
+                    <span className="font-semibold text-foreground">
+                      {formatEUR(productStats.reduce((s, p) => s + p.cout_total, 0))}
+                    </span>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
 

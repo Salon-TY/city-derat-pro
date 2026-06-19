@@ -203,6 +203,7 @@ export type StockProduct = {
   id: string;
   user_id: string;
   nom: string;
+  type_gestion: "unite" | "volume";
   unite: string;
   quantite: number;
   seuil_alerte: number;
@@ -219,10 +220,51 @@ export function useStockProducts() {
       if (error) throw error;
       return (data ?? []).map((p: any) => ({
         ...p,
+        type_gestion: p.type_gestion ?? "unite",
         quantite: Number(p.quantite),
         seuil_alerte: Number(p.seuil_alerte),
         prix_achat_ht: Number(p.prix_achat_ht),
       }));
+    },
+  });
+}
+
+export type ProductStat = {
+  id: string;
+  nom: string;
+  unite: string;
+  prix_achat_ht: number;
+  total_qty: number;
+  cout_total: number;
+};
+
+export function useProductStats() {
+  return useQuery({
+    queryKey: ["product_stats"],
+    queryFn: async (): Promise<ProductStat[]> => {
+      const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+      const [stockRes, intRes] = await Promise.all([
+        db.from("stock_products").select("id, nom, unite, prix_achat_ht"),
+        db.from("interventions").select("produits_utilises, date").gte("date", since),
+      ]);
+      const stockMap = new Map<string, { nom: string; unite: string; prix: number }>();
+      for (const p of stockRes.data ?? []) {
+        stockMap.set(p.id, { nom: p.nom, unite: p.unite, prix: Number(p.prix_achat_ht) });
+      }
+      const totals = new Map<string, number>();
+      for (const inv of intRes.data ?? []) {
+        const items: Array<{ product_id: string; quantite: number }> = inv.produits_utilises ?? [];
+        for (const item of items) {
+          totals.set(item.product_id, (totals.get(item.product_id) ?? 0) + Number(item.quantite));
+        }
+      }
+      const results: ProductStat[] = [];
+      for (const [id, qty] of totals.entries()) {
+        const p = stockMap.get(id);
+        if (!p) continue;
+        results.push({ id, nom: p.nom, unite: p.unite, prix_achat_ht: p.prix, total_qty: qty, cout_total: qty * p.prix });
+      }
+      return results.sort((a, b) => b.cout_total - a.cout_total);
     },
   });
 }
