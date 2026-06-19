@@ -43,11 +43,21 @@ async function ensureBucket(name: string): Promise<boolean> {
   return false;
 }
 
+// Garde-fou : sans user_id valide, le chemin serait à la racine et violerait la RLS storage.
+function requireUserId(userId: string): boolean {
+  if (!userId) {
+    toast.error("Session expirée. Reconnectez-vous avant d'envoyer un fichier.");
+    return false;
+  }
+  return true;
+}
+
 export async function uploadInterventionPhotos(
   photos: PhotoFile[],
   userId: string,
 ): Promise<string[]> {
   if (photos.length === 0) return [];
+  if (!requireUserId(userId)) return [];
   const ok = await ensureBucket(BUCKET);
   if (!ok) {
     toast.error("Dossier photos inaccessible. Créez le bucket « intervention-photos » dans Supabase > Storage.");
@@ -75,6 +85,7 @@ export async function deleteInterventionPhoto(url: string) {
 }
 
 export async function uploadSignature(blob: Blob, userId: string): Promise<string | null> {
+  if (!requireUserId(userId)) return null;
   const ok = await ensureBucket(SIG_BUCKET);
   if (!ok) {
     toast.error("Dossier signatures inaccessible. Créez le bucket « intervention-signatures » dans Supabase > Storage.");
@@ -105,6 +116,7 @@ function extractPath(url: string, bucket: string): string | null {
 const LOGO_BUCKET = "company-logos";
 
 export async function uploadCompanyLogo(file: File, userId: string): Promise<string | null> {
+  if (!requireUserId(userId)) return null;
   const ok = await ensureBucket(LOGO_BUCKET);
   if (!ok) {
     toast.error("Dossier logos inaccessible. Créez le bucket « company-logos » dans Supabase > Storage > New bucket.");
