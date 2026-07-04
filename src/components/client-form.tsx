@@ -24,6 +24,9 @@ export function ClientForm({
       telephone: defaultValues?.telephone ?? "",
       email: defaultValues?.email ?? "",
       siret: defaultValues?.siret ?? "",
+      siren: defaultValues?.siren ?? "",
+      rcs: defaultValues?.rcs ?? "",
+      forme_juridique: defaultValues?.forme_juridique ?? "",
       type_nuisible: defaultValues?.type_nuisible ?? "",
       notes: defaultValues?.notes ?? "",
     },
@@ -42,6 +45,13 @@ export function ClientForm({
         <Field label="Email * (requis pour rapports)" error={form.formState.errors.email?.message}><Input type="email" {...form.register("email")} placeholder="contact@client.fr" /></Field>
       </div>
       <Field label="SIRET (optionnel)"><Input {...form.register("siret")} /></Field>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="SIREN (optionnel)"><Input {...form.register("siren")} /></Field>
+        <Field label="RCS (optionnel)"><Input {...form.register("rcs")} placeholder="Paris B 123 456 789" /></Field>
+      </div>
+      <Field label="Forme juridique (optionnel)">
+        <Input {...form.register("forme_juridique")} placeholder="société par actions simplifiée" />
+      </Field>
       <Field label="Type de nuisible">
         <Select value={form.watch("type_nuisible") ?? ""} onValueChange={(v) => form.setValue("type_nuisible", v)}>
           <SelectTrigger><SelectValue placeholder="Sélectionner…" /></SelectTrigger>
