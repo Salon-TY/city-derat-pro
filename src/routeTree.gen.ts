@@ -28,6 +28,7 @@ import { Route as AppFacturesNewRouteImport } from './routes/_app.factures.new'
 import { Route as AppFacturesIdRouteImport } from './routes/_app.factures.$id'
 import { Route as AppDevisNewRouteImport } from './routes/_app.devis.new'
 import { Route as AppDevisIdRouteImport } from './routes/_app.devis.$id'
+import { Route as AppContratsIdRouteImport } from './routes/_app.contrats.$id'
 import { Route as AppClientsNewRouteImport } from './routes/_app.clients.new'
 import { Route as AppClientsIdRouteImport } from './routes/_app.clients.$id'
 
@@ -125,6 +126,11 @@ const AppDevisIdRoute = AppDevisIdRouteImport.update({
   path: '/devis/$id',
   getParentRoute: () => AppRoute,
 } as any)
+const AppContratsIdRoute = AppContratsIdRouteImport.update({
+  id: '/contrats/$id',
+  path: '/contrats/$id',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppClientsNewRoute = AppClientsNewRouteImport.update({
   id: '/clients/new',
   path: '/clients/new',
@@ -145,6 +151,7 @@ export interface FileRoutesByFullPath {
   '/tresorerie': typeof AppTresorerieRoute
   '/clients/$id': typeof AppClientsIdRoute
   '/clients/new': typeof AppClientsNewRoute
+  '/contrats/$id': typeof AppContratsIdRoute
   '/devis/$id': typeof AppDevisIdRoute
   '/devis/new': typeof AppDevisNewRoute
   '/factures/$id': typeof AppFacturesIdRoute
@@ -167,6 +174,7 @@ export interface FileRoutesByTo {
   '/': typeof AppIndexRoute
   '/clients/$id': typeof AppClientsIdRoute
   '/clients/new': typeof AppClientsNewRoute
+  '/contrats/$id': typeof AppContratsIdRoute
   '/devis/$id': typeof AppDevisIdRoute
   '/devis/new': typeof AppDevisNewRoute
   '/factures/$id': typeof AppFacturesIdRoute
@@ -191,6 +199,7 @@ export interface FileRoutesById {
   '/_app/': typeof AppIndexRoute
   '/_app/clients/$id': typeof AppClientsIdRoute
   '/_app/clients/new': typeof AppClientsNewRoute
+  '/_app/contrats/$id': typeof AppContratsIdRoute
   '/_app/devis/$id': typeof AppDevisIdRoute
   '/_app/devis/new': typeof AppDevisNewRoute
   '/_app/factures/$id': typeof AppFacturesIdRoute
@@ -215,6 +224,7 @@ export interface FileRouteTypes {
     | '/tresorerie'
     | '/clients/$id'
     | '/clients/new'
+    | '/contrats/$id'
     | '/devis/$id'
     | '/devis/new'
     | '/factures/$id'
@@ -237,6 +247,7 @@ export interface FileRouteTypes {
     | '/'
     | '/clients/$id'
     | '/clients/new'
+    | '/contrats/$id'
     | '/devis/$id'
     | '/devis/new'
     | '/factures/$id'
@@ -260,6 +271,7 @@ export interface FileRouteTypes {
     | '/_app/'
     | '/_app/clients/$id'
     | '/_app/clients/new'
+    | '/_app/contrats/$id'
     | '/_app/devis/$id'
     | '/_app/devis/new'
     | '/_app/factures/$id'
@@ -414,6 +426,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppDevisIdRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/contrats/$id': {
+      id: '/_app/contrats/$id'
+      path: '/contrats/$id'
+      fullPath: '/contrats/$id'
+      preLoaderRoute: typeof AppContratsIdRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/clients/new': {
       id: '/_app/clients/new'
       path: '/clients/new'
@@ -439,6 +458,7 @@ interface AppRouteChildren {
   AppIndexRoute: typeof AppIndexRoute
   AppClientsIdRoute: typeof AppClientsIdRoute
   AppClientsNewRoute: typeof AppClientsNewRoute
+  AppContratsIdRoute: typeof AppContratsIdRoute
   AppDevisIdRoute: typeof AppDevisIdRoute
   AppDevisNewRoute: typeof AppDevisNewRoute
   AppFacturesIdRoute: typeof AppFacturesIdRoute
@@ -461,6 +481,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppIndexRoute: AppIndexRoute,
   AppClientsIdRoute: AppClientsIdRoute,
   AppClientsNewRoute: AppClientsNewRoute,
+  AppContratsIdRoute: AppContratsIdRoute,
   AppDevisIdRoute: AppDevisIdRoute,
   AppDevisNewRoute: AppDevisNewRoute,
   AppFacturesIdRoute: AppFacturesIdRoute,

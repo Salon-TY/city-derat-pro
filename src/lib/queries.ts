@@ -306,13 +306,14 @@ export function useClient(id: string | undefined) {
   });
 }
 
-export function useInterventions(filters?: { client_id?: string; statut?: string }) {
+export function useInterventions(filters?: { client_id?: string; statut?: string; contract_id?: string }) {
   return useQuery({
     queryKey: ["interventions", filters],
     queryFn: async (): Promise<Intervention[]> => {
       let q = db.from("interventions").select("*, client:clients(*)").order("date", { ascending: false });
       if (filters?.client_id) q = q.eq("client_id", filters.client_id);
       if (filters?.statut) q = q.eq("statut", filters.statut);
+      if (filters?.contract_id) q = q.eq("contract_id", filters.contract_id);
       const { data, error } = await q;
       if (error) throw error;
       return data ?? [];
