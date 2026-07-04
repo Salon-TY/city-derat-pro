@@ -43,6 +43,9 @@ export const clientSchema = z.object({
   telephone: z.string().max(50).default(""),
   email: z.string().email("Email invalide").or(z.literal("")).default(""),
   siret: z.string().max(50).default(""),
+  siren: z.string().max(50).default(""),
+  rcs: z.string().max(100).default(""),
+  forme_juridique: z.string().max(100).default(""),
   type_nuisible: z.string().max(100).default(""),
   notes: z.string().max(2000).default(""),
 });
@@ -62,10 +65,23 @@ export const interventionSchema = z.object({
 });
 export type InterventionForm = z.infer<typeof interventionSchema>;
 
+export const TYPES_PASSAGE = [
+  { value: "préventif", label: "Préventif" },
+  { value: "curatif", label: "Curatif" },
+] as const;
+
 export const contractSchema = z.object({
   client_id: z.string().uuid("Client requis"),
+  numero: z.string().max(50).optional(),
+  nom_etablissement: z.string().max(200).default(""),
+  adresse_etablissement: z.string().max(500).default(""),
+  type_prestation: z.string().max(200).default("désinsectisation et dératisation"),
+  frequence: z.string().max(200).default(""),
+  type_passage: z.string().default("préventif"),
   date_debut: z.string().min(1, "Requis"),
-  date_fin: z.string().min(1, "Requis"),
+  date_fin: z.string().optional(),
+  duree_mois: z.coerce.number().int().min(1).max(60).default(12),
+  ville_signature: z.string().max(200).default(""),
   nb_passages_inclus: z.coerce.number().int().min(1).max(52),
   passages_realises: z.coerce.number().int().min(0).max(100),
   statut: z.string().default("actif"),

@@ -16,6 +16,9 @@ export type Client = {
   telephone: string;
   email: string;
   siret: string;
+  siren?: string | null;
+  rcs?: string | null;
+  forme_juridique?: string | null;
   type_nuisible: string;
   notes: string;
   created_at: string;
@@ -26,6 +29,7 @@ export type Intervention = {
   id: string;
   user_id: string;
   client_id: string;
+  contract_id?: string | null;
   date: string;
   adresse_site: string;
   type_nuisible: string;
@@ -46,6 +50,16 @@ export type Contract = {
   id: string;
   user_id: string;
   client_id: string;
+  numero?: string | null;
+  nom_etablissement?: string | null;
+  adresse_etablissement?: string | null;
+  type_prestation?: string | null;
+  frequence?: string | null;
+  type_passage?: string | null;
+  duree_mois?: number;
+  ville_signature?: string | null;
+  signature_url?: string | null;
+  signature_at?: string | null;
   date_debut: string;
   date_fin: string;
   nb_passages_inclus: number;

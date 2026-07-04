@@ -19,9 +19,12 @@ export type Database = {
           adresse_site: string | null
           created_at: string
           email: string | null
+          forme_juridique: string | null
           id: string
           notes: string | null
           raison_sociale: string
+          rcs: string | null
+          siren: string | null
           siret: string | null
           telephone: string | null
           type_nuisible: string | null
@@ -32,9 +35,12 @@ export type Database = {
           adresse_site?: string | null
           created_at?: string
           email?: string | null
+          forme_juridique?: string | null
           id?: string
           notes?: string | null
           raison_sociale: string
+          rcs?: string | null
+          siren?: string | null
           siret?: string | null
           telephone?: string | null
           type_nuisible?: string | null
@@ -45,9 +51,12 @@ export type Database = {
           adresse_site?: string | null
           created_at?: string
           email?: string | null
+          forme_juridique?: string | null
           id?: string
           notes?: string | null
           raison_sociale?: string
+          rcs?: string | null
+          siren?: string | null
           siret?: string | null
           telephone?: string | null
           type_nuisible?: string | null
@@ -103,43 +112,73 @@ export type Database = {
       }
       contracts: {
         Row: {
+          adresse_etablissement: string | null
           client_id: string
           created_at: string
           date_debut: string
           date_fin: string
+          duree_mois: number
+          frequence: string | null
           id: string
           nb_passages_inclus: number
+          nom_etablissement: string | null
           notes: string | null
+          numero: string | null
           passages_realises: number
+          signature_at: string | null
+          signature_url: string | null
           statut: string
+          type_passage: string
+          type_prestation: string
           updated_at: string
           user_id: string
+          ville_signature: string | null
         }
         Insert: {
+          adresse_etablissement?: string | null
           client_id: string
           created_at?: string
           date_debut: string
           date_fin: string
+          duree_mois?: number
+          frequence?: string | null
           id?: string
           nb_passages_inclus?: number
+          nom_etablissement?: string | null
           notes?: string | null
+          numero?: string | null
           passages_realises?: number
+          signature_at?: string | null
+          signature_url?: string | null
           statut?: string
+          type_passage?: string
+          type_prestation?: string
           updated_at?: string
           user_id: string
+          ville_signature?: string | null
         }
         Update: {
+          adresse_etablissement?: string | null
           client_id?: string
           created_at?: string
           date_debut?: string
           date_fin?: string
+          duree_mois?: number
+          frequence?: string | null
           id?: string
           nb_passages_inclus?: number
+          nom_etablissement?: string | null
           notes?: string | null
+          numero?: string | null
           passages_realises?: number
+          signature_at?: string | null
+          signature_url?: string | null
           statut?: string
+          type_passage?: string
+          type_prestation?: string
           updated_at?: string
           user_id?: string
+          ville_signature?: string | null
         }
         Relationships: [
           {
@@ -155,6 +194,7 @@ export type Database = {
         Row: {
           adresse_site: string | null
           client_id: string
+          contract_id: string | null
           created_at: string
           date: string
           date_prochain_passage: string | null
@@ -171,6 +211,7 @@ export type Database = {
         Insert: {
           adresse_site?: string | null
           client_id: string
+          contract_id?: string | null
           created_at?: string
           date: string
           date_prochain_passage?: string | null
@@ -187,6 +228,7 @@ export type Database = {
         Update: {
           adresse_site?: string | null
           client_id?: string
+          contract_id?: string | null
           created_at?: string
           date?: string
           date_prochain_passage?: string | null
@@ -206,6 +248,13 @@ export type Database = {
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interventions_contract_id_fkey"
+            columns: ["contract_id"]
+            isOneToOne: false
+            referencedRelation: "contracts"
             referencedColumns: ["id"]
           },
         ]
