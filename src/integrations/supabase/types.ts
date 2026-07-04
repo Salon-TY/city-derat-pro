@@ -441,12 +441,50 @@ export type Database = {
         }
         Relationships: []
       }
+      team_members: {
+        Row: {
+          id: string
+          owner_id: string
+          user_id: string
+          email: string
+          username: string | null
+          display_name: string | null
+          role: string
+          active: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          owner_id: string
+          user_id: string
+          email: string
+          username?: string | null
+          display_name?: string | null
+          role?: string
+          active?: boolean
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          owner_id?: string
+          user_id?: string
+          email?: string
+          username?: string | null
+          display_name?: string | null
+          role?: string
+          active?: boolean
+          created_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
       next_invoice_number: { Args: never; Returns: number }
+      current_user_role: { Args: never; Returns: string }
+      account_owner: { Args: never; Returns: string }
     }
     Enums: {
       [_ in never]: never
