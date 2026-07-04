@@ -12,6 +12,7 @@ import { useState, useCallback } from "react";
 import { uploadInterventionPhotos, deleteInterventionPhoto, uploadSignature, deleteSignature } from "@/lib/photos";
 import type { PhotoFile } from "@/components/intervention-form";
 import { SignatureCanvas } from "@/components/signature-canvas";
+import { printDocument } from "@/lib/print";
 import { db } from "@/lib/db";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -211,13 +212,8 @@ function InterventionDetail() {
          </div>`
       : `<div class="sig-line">Signature du client (bon pour accord)</div>`;
 
-    const html = `<!DOCTYPE html>
-<html lang="fr">
-<head>
-<meta charset="UTF-8">
-<style>
-  * { margin:0; padding:0; box-sizing:border-box; }
-  body { font-family:Arial,sans-serif; font-size:11px; color:#222; padding:32px; }
+    const css = `
+  body { font-family:Arial,sans-serif; font-size:11px; color:#222; }
   .header { display:flex; justify-content:space-between; margin-bottom:24px; border-bottom:2px solid #1a3c2e; padding-bottom:16px; }
   .prestataire strong { font-size:15px; display:block; margin-bottom:4px; color:#1a3c2e; }
   .prestataire { line-height:1.7; }
@@ -239,9 +235,9 @@ function InterventionDetail() {
   .sig-img-block { padding-top:6px; }
   .mention { margin-top:24px; padding:8px; background:#f5f5f5; border-radius:4px; font-size:9px; color:#666; line-height:1.6; }
   .footer { margin-top:16px; font-size:8px; color:#aaa; text-align:center; border-top:1px solid #eee; padding-top:8px; }
-</style>
-</head>
-<body>
+`;
+
+    const bodyHtml = `
   <div class="header">
     <div class="prestataire">
       ${s?.logo_url ? `<img src="${s.logo_url}" style="max-height:40px;max-width:100px;object-fit:contain;display:block;margin-bottom:4px" alt="Logo">` : ""}
@@ -298,15 +294,10 @@ function InterventionDetail() {
   <div class="footer">
     ${num} &nbsp;·&nbsp; Généré le ${new Date().toLocaleString("fr-FR")} &nbsp;·&nbsp; ${s?.nom ?? "CITY DERAT"}
   </div>
-</body>
-</html>`;
+`;
 
-    const win = window.open("", "_blank");
-    if (!win) { toast.error("Autorisez les popups pour générer le PDF"); return; }
-    win.document.write(html);
-    win.document.close();
-    win.focus();
-    setTimeout(() => { win.print(); }, 600);
+    const ok = printDocument({ title: `Rapport ${num}`, bodyHtml, css });
+    if (!ok) { toast.error("Autorisez les popups pour générer le PDF"); return; }
   }
 
   // ── Certificat biocide ──────────────────────────────────────────────────────
@@ -357,14 +348,8 @@ function InterventionDetail() {
          </div>`
       : `<div style="border-top:1px solid #ccc;margin-top:40px;padding-top:4px;font-size:9px;color:#9ca3af;text-align:center">Signature du client (bon pour accord)</div>`;
 
-    const html = `<!DOCTYPE html>
-<html lang="fr">
-<head>
-<meta charset="UTF-8">
-<title>Certificat de traitement biocide ${certNum}</title>
-<style>
-  * { margin:0;padding:0;box-sizing:border-box; }
-  body { font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;font-size:11px;color:#1e293b;padding:28px 36px; }
+    const css = `
+  body { font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;font-size:11px;color:#1e293b; }
   .header { display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;padding-bottom:14px;border-bottom:3px solid #1a3c2e; }
   .logo-block { display:flex;align-items:center;gap:10px; }
   .logo-text .name { font-size:16px;font-weight:800;color:#1a3c2e; }
@@ -386,10 +371,9 @@ function InterventionDetail() {
   .sig-row { display:flex;justify-content:space-between;gap:20px;margin-top:16px; }
   .sig-col { flex:1;text-align:center; }
   .sig-label { font-size:9px;color:#94a3b8;text-transform:uppercase;margin-bottom:8px; }
-</style>
-</head>
-<body>
+`;
 
+    const bodyHtml = `
 <div class="header">
   <div class="logo-block">
     ${s?.logo_url ? `<img src="${s.logo_url}" style="max-height:44px;max-width:110px;object-fit:contain;display:block" alt="Logo">` : ""}
@@ -495,16 +479,10 @@ ${intervention.observations ? `
 <div class="footer">
   Certificat N° ${certNum} · Généré le ${dateGeneration} · ${s?.nom ?? "CITY DERAT"} · SIRET ${s?.siret ?? ""}
 </div>
+`;
 
-</body>
-</html>`;
-
-    const win = window.open("", "_blank", "width=900,height=750");
-    if (!win) { toast.error("Popup bloquée — autorisez les popups pour ce site"); return; }
-    win.document.write(html);
-    win.document.close();
-    win.focus();
-    setTimeout(() => { win.print(); }, 600);
+    const ok = printDocument({ title: `Certificat ${certNum}`, bodyHtml, css });
+    if (!ok) { toast.error("Autorisez les popups pour générer le PDF"); return; }
   }
 
   // ── Email ───────────────────────────────────────────────────────────────────

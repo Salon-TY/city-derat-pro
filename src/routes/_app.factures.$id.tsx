@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ArrowLeft, Download, Trash2, Mail, MapPin, Pencil, Plus, X, Bell, Clock } from "lucide-react";
 import { db } from "@/lib/db";
 import { supabase } from "@/integrations/supabase/client";
+import { printDocument } from "@/lib/print";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
@@ -310,12 +311,7 @@ function FactureDetail() {
         <td style="padding:8px 10px;text-align:right;font-weight:600">${formatEUR(l.total_ht)}</td>
       </tr>`).join("");
 
-    const html = `<!DOCTYPE html>
-<html lang="fr">
-<head>
-<meta charset="UTF-8">
-<style>
-  * { margin:0; padding:0; box-sizing:border-box; }
+    const css = `
   body { font-family:Arial,sans-serif; font-size:11px; color:#1f2937; background:#fff; }
 
   /* ── En-tête bandeau vert ── */
@@ -394,10 +390,9 @@ function FactureDetail() {
     border-top:3px solid #f97316;
     font-size:9px; color:#6b7280; line-height:1.7;
   }
-</style>
-</head>
-<body>
+`;
 
+    const bodyHtml = `
   <div class="header">
     <div class="logo-block">
       ${s?.logo_url ? `<img src="${s.logo_url}" style="max-height:48px;max-width:120px;object-fit:contain;display:block" alt="Logo">` : `<div class="logo-icon">🐀</div>`}
@@ -472,15 +467,10 @@ function FactureDetail() {
     </div>
 
   </div>
-</body>
-</html>`;
+`;
 
-    const win = window.open("", "_blank");
-    if (!win) { toast.error("Autorisez les popups pour télécharger le PDF"); return; }
-    win.document.write(html);
-    win.document.close();
-    win.focus();
-    setTimeout(() => { win.print(); }, 500);
+    const ok = printDocument({ title: `Facture N°${invoice.numero}`, bodyHtml, css });
+    if (!ok) { toast.error("Autorisez les popups pour générer le PDF"); return; }
   }
 
   async function sendRelance() {

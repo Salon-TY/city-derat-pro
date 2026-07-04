@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ArrowLeft, Download, Trash2, Pencil, Plus, FileText, ClipboardList } from "lucide-react";
 import { db } from "@/lib/db";
 import { supabase } from "@/integrations/supabase/client";
+import { printDocument } from "@/lib/print";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
@@ -333,14 +334,8 @@ function DevisDetail() {
       </tr>
     `).join("");
 
-    const html = `<!DOCTYPE html>
-<html lang="fr">
-<head>
-<meta charset="UTF-8">
-<title>DEVIS ${quote.numero}</title>
-<style>
-  * { margin:0;padding:0;box-sizing:border-box; }
-  body { font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;font-size:11px;color:#1e293b;background:#fff;padding:24px 32px; }
+    const css = `
+  body { font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;font-size:11px;color:#1e293b;background:#fff; }
   .header { display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;padding-bottom:16px;border-bottom:3px solid #f97316; }
   .logo-block { display:flex;align-items:center;gap:12px; }
   .logo-icon { font-size:28px; }
@@ -363,9 +358,9 @@ function DevisDetail() {
   .validity { margin-top:16px;padding:8px 12px;background:#fff7ed;border-left:3px solid #f97316;font-size:10px;color:#c2410c; }
   .notes { margin-top:16px;padding:10px;background:#f8fafc;border-radius:6px;font-size:10px;color:#64748b;line-height:1.6; }
   .footer { margin-top:24px;padding-top:10px;border-top:2px solid #f1f5f9;font-size:9px;color:#94a3b8;text-align:center; }
-</style>
-</head>
-<body>
+`;
+
+    const bodyHtml = `
   <div class="header">
     <div class="logo-block">
       ${s?.logo_url ? `<img src="${s.logo_url}" style="max-height:48px;max-width:120px;object-fit:contain" alt="Logo">` : `<div class="logo-icon">🐀</div>`}
@@ -422,14 +417,10 @@ function DevisDetail() {
   <div class="footer">
     Document généré le ${dateHeure} — ${s?.nom ?? "CITY DERAT"} · SIRET ${s?.siret ?? "88268913600019"} · ${s?.tva_number ?? ""}
   </div>
-</body>
-</html>`;
+`;
 
-    const w = window.open("", "_blank", "width=900,height=700");
-    if (!w) { toast.error("Popup bloquée"); return; }
-    w.document.write(html);
-    w.document.close();
-    setTimeout(() => { w.focus(); w.print(); }, 400);
+    const ok = printDocument({ title: `Devis ${quote.numero}`, bodyHtml, css });
+    if (!ok) { toast.error("Autorisez les popups pour générer le PDF"); return; }
   }
 
   if (editing) {

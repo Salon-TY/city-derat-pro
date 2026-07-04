@@ -7,6 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { SignatureCanvas } from "@/components/signature-canvas";
 import { uploadSignature, deleteSignature } from "@/lib/photos";
+import { printDocument } from "@/lib/print";
 import { db } from "@/lib/db";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -126,13 +127,8 @@ function ContractDetail() {
          </div>`
       : `<div class="sig-line">${clientNom}</div>`;
 
-    const html = `<!DOCTYPE html>
-<html lang="fr">
-<head>
-<meta charset="UTF-8">
-<style>
-  * { margin:0; padding:0; box-sizing:border-box; }
-  body { font-family:Arial,sans-serif; font-size:11px; color:#222; padding:32px; }
+    const css = `
+  body { font-family:Arial,sans-serif; font-size:11px; color:#222; }
   .header { display:flex; justify-content:space-between; margin-bottom:24px; border-bottom:2px solid #1a3c2e; padding-bottom:16px; }
   .prestataire strong { font-size:15px; display:block; margin-bottom:4px; color:#1a3c2e; }
   .prestataire { line-height:1.7; }
@@ -147,9 +143,9 @@ function ContractDetail() {
   .sig-line { border-top:1px solid #ccc; margin-top:50px; padding-top:5px; font-size:9px; color:#777; }
   .sig-img-block { padding-top:6px; }
   .footer { margin-top:24px; font-size:8px; color:#aaa; text-align:center; border-top:1px solid #eee; padding-top:8px; }
-</style>
-</head>
-<body>
+`;
+
+    const bodyHtml = `
   <div class="header">
     <div class="prestataire">
       ${s?.logo_url ? `<img src="${s.logo_url}" style="max-height:40px;max-width:100px;object-fit:contain;display:block;margin-bottom:4px" alt="Logo">` : ""}
@@ -195,15 +191,10 @@ function ContractDetail() {
   <div class="footer">
     ${contract.numero ?? ""} &nbsp;·&nbsp; Généré le ${new Date().toLocaleString("fr-FR")} &nbsp;·&nbsp; ${nomSociete}
   </div>
-</body>
-</html>`;
+`;
 
-    const win = window.open("", "_blank");
-    if (!win) { toast.error("Autorisez les popups pour générer le PDF"); return; }
-    win.document.write(html);
-    win.document.close();
-    win.focus();
-    setTimeout(() => { win.print(); }, 600);
+    const ok = printDocument({ title: `Contrat ${contract.numero ?? ""}`, bodyHtml, css });
+    if (!ok) { toast.error("Autorisez les popups pour générer le PDF"); return; }
   }
 
   async function handleSendEmail() {
