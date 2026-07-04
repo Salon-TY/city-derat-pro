@@ -30,19 +30,6 @@ async function compressImage(file: File): Promise<Blob> {
   });
 }
 
-async function ensureBucket(name: string): Promise<boolean> {
-  const { data: buckets } = await supabase.storage.listBuckets();
-  if (buckets?.some((b) => b.name === name)) return true;
-  const { error } = await supabase.storage.createBucket(name, {
-    public: true,
-    fileSizeLimit: 10 * 1024 * 1024,
-    allowedMimeTypes: ["image/jpeg", "image/png", "image/webp", "image/heic"],
-  });
-  if (!error || error.message.toLowerCase().includes("already exist")) return true;
-  console.error(`[photos] Bucket "${name}" inaccessible :`, error.message);
-  return false;
-}
-
 // Garde-fou : sans user_id valide, le chemin serait à la racine et violerait la RLS storage.
 function requireUserId(userId: string): boolean {
   if (!userId) {
@@ -58,11 +45,6 @@ export async function uploadInterventionPhotos(
 ): Promise<string[]> {
   if (photos.length === 0) return [];
   if (!requireUserId(userId)) return [];
-  const ok = await ensureBucket(BUCKET);
-  if (!ok) {
-    toast.error("Dossier photos inaccessible. Créez le bucket « intervention-photos » dans Supabase > Storage.");
-    return [];
-  }
   const urls: string[] = [];
   for (const { file } of photos) {
     const compressed = await compressImage(file);
@@ -72,7 +54,11 @@ export async function uploadInterventionPhotos(
       contentType: "image/jpeg",
       upsert: false,
     });
-    if (error) { toast.error(`Erreur upload photo : ${error.message}`); continue; }
+    if (error) {
+      console.error("[photos] uploadInterventionPhotos failed:", error);
+      toast.error(`Erreur upload photo : ${error.message}`);
+      continue;
+    }
     const { data } = supabase.storage.from(BUCKET).getPublicUrl(path);
     urls.push(data.publicUrl);
   }
@@ -86,18 +72,17 @@ export async function deleteInterventionPhoto(url: string) {
 
 export async function uploadSignature(blob: Blob, userId: string): Promise<string | null> {
   if (!requireUserId(userId)) return null;
-  const ok = await ensureBucket(SIG_BUCKET);
-  if (!ok) {
-    toast.error("Dossier signatures inaccessible. Créez le bucket « intervention-signatures » dans Supabase > Storage.");
-    return null;
-  }
   const path = `${userId}/${Date.now()}.png`;
   const { error } = await supabase.storage.from(SIG_BUCKET).upload(path, blob, {
     cacheControl: "3600",
     contentType: "image/png",
     upsert: false,
   });
-  if (error) { toast.error(`Erreur upload signature : ${error.message}`); return null; }
+  if (error) {
+    console.error("[photos] uploadSignature failed:", error);
+    toast.error(`Erreur upload signature : ${error.message}`);
+    return null;
+  }
   const { data } = supabase.storage.from(SIG_BUCKET).getPublicUrl(path);
   return data.publicUrl;
 }
@@ -117,11 +102,6 @@ const LOGO_BUCKET = "company-logos";
 
 export async function uploadCompanyLogo(file: File, userId: string): Promise<string | null> {
   if (!requireUserId(userId)) return null;
-  const ok = await ensureBucket(LOGO_BUCKET);
-  if (!ok) {
-    toast.error("Dossier logos inaccessible. Créez le bucket « company-logos » dans Supabase > Storage > New bucket.");
-    return null;
-  }
   const ext = file.name.split(".").pop() ?? "jpg";
   const path = `${userId}/logo.${ext}`;
   const compressed = await compressImage(file);
@@ -130,7 +110,11 @@ export async function uploadCompanyLogo(file: File, userId: string): Promise<str
     contentType: file.type || "image/jpeg",
     upsert: true,
   });
-  if (error) { toast.error(`Erreur upload logo : ${error.message}`); return null; }
+  if (error) {
+    console.error("[photos] uploadCompanyLogo failed:", error);
+    toast.error(`Erreur upload logo : ${error.message}`);
+    return null;
+  }
   const { data } = supabase.storage.from(LOGO_BUCKET).getPublicUrl(path);
   // Add cache-bust to force refresh
   return `${data.publicUrl}?t=${Date.now()}`;
