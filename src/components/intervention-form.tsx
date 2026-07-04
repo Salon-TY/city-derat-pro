@@ -8,7 +8,7 @@ import {
   TYPES_INTERVENTION,
   STATUTS_INTERVENTION,
 } from "@/lib/schemas";
-import { useClients, useStockProducts } from "@/lib/queries";
+import { useClients, useStockProducts, useContracts } from "@/lib/queries";
 import { db } from "@/lib/db";
 
 export type StockUsageItem = {
@@ -68,6 +68,7 @@ export function InterventionForm({
 }) {
   const { data: clients = [], refetch: refetchClients } = useClients();
   const { data: stockProducts = [] } = useStockProducts();
+  const { data: contracts = [] } = useContracts();
   const qc = useQueryClient();
   const [showNewClient, setShowNewClient] = useState(false);
   const [newClientName, setNewClientName] = useState("");
@@ -133,6 +134,7 @@ export function InterventionForm({
     resolver: zodResolver(interventionSchema) as any,
     defaultValues: {
       client_id: defaultValues?.client_id ?? "",
+      contract_id: defaultValues?.contract_id ?? "",
       date: defaultValues?.date ?? new Date().toISOString().slice(0, 10),
       adresse_site: defaultValues?.adresse_site ?? "",
       type_nuisible: defaultValues?.type_nuisible ?? "",
@@ -146,6 +148,8 @@ export function InterventionForm({
   });
 
   const clientId = form.watch("client_id");
+  const contractId = form.watch("contract_id");
+  const clientContracts = contracts.filter((c) => c.client_id === clientId && c.statut === "actif");
 
   useEffect(() => {
     if (!clientId) return;
@@ -158,6 +162,12 @@ export function InterventionForm({
       form.setValue("type_nuisible", c.type_nuisible);
     }
   }, [clientId, clients]);
+
+  useEffect(() => {
+    if (contractId && !clientContracts.some((c) => c.id === contractId)) {
+      form.setValue("contract_id", "");
+    }
+  }, [clientId, clientContracts]);
 
 
   async function createClient() {
@@ -356,6 +366,24 @@ export function InterventionForm({
           )}
         </div>
       </Field>
+
+      {clientContracts.length > 0 && (
+        <Field label="Contrat rattaché (optionnel)">
+          <Select
+            value={form.watch("contract_id") || undefined}
+            onValueChange={(v) => form.setValue("contract_id", v)}
+          >
+            <SelectTrigger><SelectValue placeholder="Aucun contrat…" /></SelectTrigger>
+            <SelectContent>
+              {clientContracts.map((c) => (
+                <SelectItem key={c.id} value={c.id}>
+                  {c.numero ? `${c.numero} — ` : ""}{c.nom_etablissement || "Établissement"}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+      )}
 
       <div className="grid grid-cols-2 gap-3">
         <Field label="Date *" error={form.formState.errors.date?.message}>

@@ -53,6 +53,7 @@ export type ClientForm = z.infer<typeof clientSchema>;
 
 export const interventionSchema = z.object({
   client_id: z.string().uuid("Client requis"),
+  contract_id: z.string().default(""),
   date: z.string().min(1, "Date requise"),
   adresse_site: z.string().max(500).default(""),
   type_nuisible: z.string().max(100).default(""),

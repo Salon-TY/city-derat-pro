@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useIntervention, useSettings, useProduitsBiocides } from "@/lib/queries";
+import { useIntervention, useSettings, useProduitsBiocides, useContracts } from "@/lib/queries";
 import { formatDateFR, STATUTS_INTERVENTION } from "@/lib/schemas";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -61,6 +61,7 @@ function InterventionDetail() {
   const { data: intervention, isLoading } = useIntervention(id);
   const { data: settings } = useSettings();
   const { data: produitsBiocides = [] } = useProduitsBiocides();
+  const { data: contracts = [] } = useContracts();
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [uploadingPhotos, setUploadingPhotos] = useState(false);
   const [showSignatureCanvas, setShowSignatureCanvas] = useState(false);
@@ -102,6 +103,26 @@ function InterventionDetail() {
 
   const closeLightbox = useCallback(() => setLightboxIndex(null), []);
 
+  // ── Contrat rattaché ─────────────────────────────────────────────────────────
+
+  async function handleContractChange(contractId: string) {
+    await db.from("interventions").update({ contract_id: contractId || null }).eq("id", id);
+    qc.invalidateQueries({ queryKey: ["intervention", id] });
+    toast.success("Contrat rattaché mis à jour");
+  }
+
+  // ── Compteur de passages contrat ─────────────────────────────────────────────
+
+  async function maybeIncrementContractPassages(newStatut: string) {
+    if (!intervention?.contract_id || intervention.statut === "realisee" || newStatut !== "realisee") return;
+    const { data: contract } = await db.from("contracts").select("passages_realises, nb_passages_inclus").eq("id", intervention.contract_id).maybeSingle();
+    if (!contract) return;
+    const next = Math.min(contract.nb_passages_inclus, contract.passages_realises + 1);
+    await db.from("contracts").update({ passages_realises: next }).eq("id", intervention.contract_id);
+    qc.invalidateQueries({ queryKey: ["contracts"] });
+    qc.invalidateQueries({ queryKey: ["contract", intervention.contract_id] });
+  }
+
   // ── Signature handler ───────────────────────────────────────────────────────
 
   async function handleSignatureSave(blob: Blob) {
@@ -110,6 +131,7 @@ function InterventionDetail() {
     const url = await uploadSignature(blob, user?.id ?? "");
     if (url) {
       const signedAt = new Date().toISOString();
+      await maybeIncrementContractPassages("realisee");
       await db.from("interventions").update({ signature_url: url, signature_at: signedAt, statut: "realisee" }).eq("id", id);
       qc.invalidateQueries({ queryKey: ["intervention", id] });
       toast.success("Signature enregistrée");
@@ -129,6 +151,7 @@ function InterventionDetail() {
   // ── Statut ──────────────────────────────────────────────────────────────────
 
   async function updateStatut(statut: string) {
+    await maybeIncrementContractPassages(statut);
     await db.from("interventions").update({ statut }).eq("id", id);
     qc.invalidateQueries({ queryKey: ["intervention", id] });
     qc.invalidateQueries({ queryKey: ["interventions"] });
@@ -641,6 +664,19 @@ ${intervention.observations ? `
           {intervention.date_prochain_passage && (
             <InfoRow icon={<CalendarClock className="h-4 w-4" />} label="Prochain passage" value={formatDateFR(intervention.date_prochain_passage)} />
           )}
+          <div className="space-y-1.5">
+            <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Contrat rattaché</div>
+            <Select value={intervention.contract_id ?? ""} onValueChange={handleContractChange}>
+              <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Aucun contrat" /></SelectTrigger>
+              <SelectContent>
+                {contracts.filter((c) => c.client_id === intervention.client_id).map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.numero ? `${c.numero} — ` : ""}{c.nom_etablissement || "Établissement"}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </CardContent>
       </Card>
 

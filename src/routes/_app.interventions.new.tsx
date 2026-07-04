@@ -51,6 +51,7 @@ function NewIntervention() {
 
     const payload = {
       ...values,
+      contract_id: values.contract_id || null,
       date_prochain_passage: values.date_prochain_passage || null,
       user_id: userId,
       photos: photoUrls.length > 0 ? photoUrls : null,
@@ -58,6 +59,15 @@ function NewIntervention() {
     };
     const { error } = await db.from("interventions").insert(payload);
     if (error) { toast.error(error.message); return; }
+
+    if (payload.contract_id && payload.statut === "realisee") {
+      const { data: contract } = await db.from("contracts").select("passages_realises, nb_passages_inclus").eq("id", payload.contract_id).maybeSingle();
+      if (contract) {
+        const next = Math.min(contract.nb_passages_inclus, contract.passages_realises + 1);
+        await db.from("contracts").update({ passages_realises: next }).eq("id", payload.contract_id);
+        qc.invalidateQueries({ queryKey: ["contracts"] });
+      }
+    }
 
     // Déduction automatique du stock
     for (const item of stockItems) {
