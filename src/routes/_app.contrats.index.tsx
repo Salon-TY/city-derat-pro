@@ -1,9 +1,10 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useState, useMemo } from "react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useState, useMemo, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { contractSchema, type ContractForm, formatDateFR, STATUTS_CONTRAT } from "@/lib/schemas";
+import { contractSchema, type ContractForm as ContractFormType, formatDateFR, STATUTS_CONTRAT, TYPES_PASSAGE } from "@/lib/schemas";
 import { useContracts, useClients } from "@/lib/queries";
+import type { Contract } from "@/lib/queries";
 import { db } from "@/lib/db";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -18,6 +19,24 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Plus, AlertTriangle, CheckCircle2, Clock, Trash2, Search, Filter, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+function addMonths(dateStr: string, months: number): string {
+  const d = new Date(dateStr + "T00:00:00");
+  d.setMonth(d.getMonth() + months);
+  return d.toISOString().slice(0, 10);
+}
+
+export async function nextContractNumero(): Promise<string> {
+  const year = new Date().getFullYear();
+  const prefix = `CT-${year}-`;
+  const { data } = await db.from("contracts").select("numero").ilike("numero", `${prefix}%`);
+  let max = 0;
+  for (const row of data ?? []) {
+    const n = Number((row.numero as string | null)?.slice(prefix.length));
+    if (!isNaN(n) && n > max) max = n;
+  }
+  return `${prefix}${String(max + 1).padStart(3, "0")}`;
+}
 
 export const Route = createFileRoute("/_app/contrats/")({
   head: () => ({ meta: [{ title: "Contrats — CITY DERAT" }] }),
@@ -188,10 +207,11 @@ function ContratsPage() {
                 expiring && days > 7 && "border-orange-300")}>
                 <CardContent className="p-4 space-y-2">
                   <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
+                    <Link to="/contrats/$id" params={{ id: c.id }} className="min-w-0 flex-1">
+                      {c.numero && <div className="text-[10px] font-mono text-muted-foreground">{c.numero}</div>}
                       <div className="font-semibold truncate">{c.client?.raison_sociale ?? "—"}</div>
                       <div className="text-xs text-muted-foreground">{formatDateFR(c.date_debut)} → {formatDateFR(c.date_fin)}</div>
-                    </div>
+                    </Link>
                     <div className="flex items-center gap-2 shrink-0">
                       <div className="flex items-center gap-1">
                         {STATUT_ICONS[c.statut]}
@@ -274,58 +294,122 @@ function UpdatePassages({ contrat }: { contrat: any }) {
   );
 }
 
-function ContratForm({ onSuccess }: { onSuccess: () => void }) {
+export function ContratForm({ contract, onSuccess }: { contract?: Contract; onSuccess: () => void }) {
   const qc = useQueryClient();
   const { data: clients = [] } = useClients();
   const today = new Date().toISOString().slice(0, 10);
-  const defaultFin = new Date();
-  defaultFin.setFullYear(defaultFin.getFullYear() + 1);
+  const isEdit = !!contract;
 
-  const form = useForm<ContractForm>({
+  const form = useForm<ContractFormType>({
     resolver: zodResolver(contractSchema) as any,
     defaultValues: {
-      client_id: "", date_debut: today,
-      date_fin: defaultFin.toISOString().slice(0, 10),
-      nb_passages_inclus: 3, passages_realises: 0, statut: "actif", notes: "",
+      client_id: contract?.client_id ?? "",
+      numero: contract?.numero ?? undefined,
+      nom_etablissement: contract?.nom_etablissement ?? "",
+      adresse_etablissement: contract?.adresse_etablissement ?? "",
+      type_prestation: contract?.type_prestation ?? "désinsectisation et dératisation",
+      frequence: contract?.frequence ?? "",
+      type_passage: contract?.type_passage ?? "préventif",
+      date_debut: contract?.date_debut ?? today,
+      duree_mois: contract?.duree_mois ?? 12,
+      ville_signature: contract?.ville_signature ?? "",
+      nb_passages_inclus: contract?.nb_passages_inclus ?? 3,
+      passages_realises: contract?.passages_realises ?? 0,
+      statut: contract?.statut ?? "actif",
+      notes: contract?.notes ?? "",
     },
   });
 
-  async function onSubmit(values: ContractForm) {
+  const clientId = form.watch("client_id");
+  useEffect(() => {
+    if (!clientId || isEdit) return;
+    const c = clients.find((x) => x.id === clientId);
+    if (c?.adresse_site && !form.getValues("adresse_etablissement")) {
+      form.setValue("adresse_etablissement", c.adresse_site);
+    }
+  }, [clientId, clients]);
+
+  async function onSubmit(values: ContractFormType) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { toast.error("Non connecté"); return; }
-    const { error } = await db.from("contracts").insert({ ...values, user_id: user.id });
-    if (error) { toast.error(error.message); return; }
-    qc.invalidateQueries({ queryKey: ["contracts"] });
-    toast.success("Contrat créé");
+    const date_fin = addMonths(values.date_debut, values.duree_mois);
+
+    if (isEdit) {
+      const { error } = await db.from("contracts").update({ ...values, date_fin }).eq("id", contract!.id);
+      if (error) { toast.error(error.message); return; }
+      qc.invalidateQueries({ queryKey: ["contracts"] });
+      qc.invalidateQueries({ queryKey: ["contract", contract!.id] });
+      toast.success("Contrat mis à jour");
+    } else {
+      const numero = await nextContractNumero();
+      const { error } = await db.from("contracts").insert({ ...values, numero, date_fin, user_id: user.id });
+      if (error) { toast.error(error.message); return; }
+      qc.invalidateQueries({ queryKey: ["contracts"] });
+      toast.success(`Contrat ${numero} créé`);
+    }
     onSuccess();
   }
 
   return (
-    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
-      <Field label="Client *" error={(form.formState.errors as any).client_id?.message}>
-        <Select value={form.watch("client_id")} onValueChange={(v) => form.setValue("client_id", v, { shouldValidate: true })}>
-          <SelectTrigger><SelectValue placeholder="Sélectionner un client…" /></SelectTrigger>
-          <SelectContent>{clients.map((c) => <SelectItem key={c.id} value={c.id}>{c.raison_sociale}</SelectItem>)}</SelectContent>
-        </Select>
-      </Field>
-      <div className="grid grid-cols-2 gap-3">
-        <Field label="Date début *"><Input type="date" {...form.register("date_debut")} /></Field>
-        <Field label="Date fin *"><Input type="date" {...form.register("date_fin")} /></Field>
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <Field label="Passages inclus" error={(form.formState.errors as any).nb_passages_inclus?.message}>
-          <Input type="number" {...form.register("nb_passages_inclus")} />
+    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+      <div className="space-y-3">
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Client & établissement</h3>
+        <Field label="Client *" error={(form.formState.errors as any).client_id?.message}>
+          <Select value={form.watch("client_id")} onValueChange={(v) => form.setValue("client_id", v, { shouldValidate: true })}>
+            <SelectTrigger><SelectValue placeholder="Sélectionner un client…" /></SelectTrigger>
+            <SelectContent>{clients.map((c) => <SelectItem key={c.id} value={c.id}>{c.raison_sociale}</SelectItem>)}</SelectContent>
+          </Select>
         </Field>
+        <Field label="Nom de l'établissement"><Input {...form.register("nom_etablissement")} /></Field>
+        <Field label="Adresse de l'établissement"><Textarea rows={2} {...form.register("adresse_etablissement")} /></Field>
+      </div>
+
+      <div className="space-y-3">
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Prestation</h3>
+        <Field label="Type de prestation"><Input {...form.register("type_prestation")} /></Field>
+        <Field label="Fréquence"><Input {...form.register("frequence")} placeholder="1 passage hebdomadaire" /></Field>
+        <Field label="Type de passage">
+          <Select value={form.watch("type_passage")} onValueChange={(v) => form.setValue("type_passage", v)}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>{TYPES_PASSAGE.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
+          </Select>
+        </Field>
+      </div>
+
+      <div className="space-y-3">
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Durée</h3>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Date début *" error={(form.formState.errors as any).date_debut?.message}>
+            <Input type="date" {...form.register("date_debut")} />
+          </Field>
+          <Field label="Durée (mois)" error={(form.formState.errors as any).duree_mois?.message}>
+            <Input type="number" min={1} max={60} {...form.register("duree_mois")} />
+          </Field>
+        </div>
+        <Field label="Ville de signature"><Input {...form.register("ville_signature")} placeholder="Paris" /></Field>
+      </div>
+
+      <div className="space-y-3">
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Suivi</h3>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Passages inclus" error={(form.formState.errors as any).nb_passages_inclus?.message}>
+            <Input type="number" {...form.register("nb_passages_inclus")} />
+          </Field>
+          <Field label="Passages réalisés" error={(form.formState.errors as any).passages_realises?.message}>
+            <Input type="number" {...form.register("passages_realises")} />
+          </Field>
+        </div>
         <Field label="Statut">
           <Select value={form.watch("statut")} onValueChange={(v) => form.setValue("statut", v)}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>{STATUTS_CONTRAT.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
           </Select>
         </Field>
+        <Field label="Notes"><Textarea rows={2} {...form.register("notes")} /></Field>
       </div>
-      <Field label="Notes"><Textarea rows={2} {...form.register("notes")} /></Field>
+
       <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
-        {form.formState.isSubmitting ? "Enregistrement…" : "Créer le contrat"}
+        {form.formState.isSubmitting ? "Enregistrement…" : isEdit ? "Enregistrer" : "Créer le contrat"}
       </Button>
     </form>
   );
