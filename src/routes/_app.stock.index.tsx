@@ -14,8 +14,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Plus, ArrowLeftRight, AlertTriangle, Package, Trash2, Pencil, Search, Truck, Warehouse } from "lucide-react";
 import {
   useStockProducts, useStockLevels, useMyVanStock, useAssignableMembers, useCurrentRole,
+  useStockMovements, useMyVanMovements, logStockMovement, resolveTechnicianName,
   getGarageLevel, getVanLevel,
-  type StockProduct, type StockLevel, type AssignableMember,
+  type StockProduct, type StockLevel, type AssignableMember, type StockMovement, type StockMovementType,
 } from "@/lib/queries";
 import { stockProductSchema, type StockProductForm, UNITES_STOCK, UNITES_VOLUME, UNITES_UNITE, formatEUR } from "@/lib/schemas";
 import { supabase } from "@/integrations/supabase/client";
@@ -166,6 +167,7 @@ function OwnerStockView() {
       const { error } = await db.from("stock_levels").insert({ product_id: productId, technicien_id: null, quantite: next, user_id: u.user?.id });
       if (error) { toast.error(error.message); return; }
     }
+    await logStockMovement({ product_id: productId, type: "entree", technicien_id: null, quantite: qty });
     invalidateStock(qc);
     toast.success("Stock garage mis à jour");
   }
@@ -196,6 +198,7 @@ function OwnerStockView() {
       const { error } = await db.from("stock_levels").insert({ product_id: productId, technicien_id: technicienId, quantite: newVanQty, user_id: u.user?.id });
       if (error) { toast.error(error.message); return; }
     }
+    await logStockMovement({ product_id: productId, type: "transfert", technicien_id: technicienId, quantite: qty });
     invalidateStock(qc);
     toast.success("Réapprovisionnement effectué");
   }
@@ -203,6 +206,7 @@ function OwnerStockView() {
   async function handleCorrectVanLevel(productId: string, technicienId: string, newQty: number) {
     const { data: u } = await supabase.auth.getUser();
     const van = getVanLevel(levels, productId, technicienId);
+    const previousQty = van?.quantite ?? 0;
     if (van) {
       const { error } = await db.from("stock_levels").update({ quantite: newQty }).eq("id", van.id);
       if (error) { toast.error(error.message); return; }
@@ -210,6 +214,7 @@ function OwnerStockView() {
       const { error } = await db.from("stock_levels").insert({ product_id: productId, technicien_id: technicienId, quantite: newQty, user_id: u.user?.id });
       if (error) { toast.error(error.message); return; }
     }
+    await logStockMovement({ product_id: productId, type: "ajustement", technicien_id: technicienId, quantite: newQty - previousQty });
     invalidateStock(qc);
     toast.success("Niveau corrigé");
   }

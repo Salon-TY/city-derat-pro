@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate, Link, useSearch } from "@tanstack/react-r
 import { ArrowLeft } from "lucide-react";
 import { InterventionForm, type StockUsageItem, type PhotoFile } from "@/components/intervention-form";
 import { uploadInterventionPhotos } from "@/lib/photos";
+import { logStockMovement } from "@/lib/queries";
 import { db } from "@/lib/db";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -69,7 +70,7 @@ function NewIntervention() {
       photos: photoUrls.length > 0 ? photoUrls : null,
       produits_utilises: produits_utilises.length > 0 ? produits_utilises : [],
     };
-    const { error } = await db.from("interventions").insert(payload);
+    const { data: newIntervention, error } = await db.from("interventions").insert(payload).select().single();
     if (error) { toast.error(error.message); return; }
 
     if (payload.contract_id && payload.statut === "realisee") {
@@ -92,6 +93,13 @@ function NewIntervention() {
       } else {
         await db.from("stock_levels").insert({ product_id: item.product_id, technicien_id: technicienId, quantite: next, user_id: userId });
       }
+      await logStockMovement({
+        product_id: item.product_id,
+        type: "consommation",
+        technicien_id: technicienId,
+        intervention_id: newIntervention?.id ?? null,
+        quantite: item.quantite,
+      });
     }
     if (stockItems.length > 0) {
       qc.invalidateQueries({ queryKey: ["stock_levels"] });
