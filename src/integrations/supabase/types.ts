@@ -408,6 +408,60 @@ export type Database = {
         }
         Relationships: []
       }
+      stock_movements: {
+        Row: {
+          id: string
+          product_id: string
+          type: string
+          quantite: number
+          technicien_id: string | null
+          intervention_id: string | null
+          note: string | null
+          created_by: string
+          user_id: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          product_id: string
+          type: string
+          quantite: number
+          technicien_id?: string | null
+          intervention_id?: string | null
+          note?: string | null
+          created_by: string
+          user_id: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          product_id?: string
+          type?: string
+          quantite?: number
+          technicien_id?: string | null
+          intervention_id?: string | null
+          note?: string | null
+          created_by?: string
+          user_id?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_movements_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "stock_products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_movements_intervention_id_fkey"
+            columns: ["intervention_id"]
+            isOneToOne: false
+            referencedRelation: "interventions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       stock_levels: {
         Row: {
           id: string

@@ -304,6 +304,91 @@ export function getVanLevel(
   return levels?.find((l) => l.product_id === productId && l.technicien_id === technicienId);
 }
 
+export type StockMovementType = "entree" | "transfert" | "consommation" | "ajustement";
+
+export type StockMovement = {
+  id: string;
+  product_id: string;
+  type: StockMovementType;
+  quantite: number;
+  technicien_id: string | null;
+  intervention_id: string | null;
+  note: string | null;
+  created_by: string;
+  user_id: string;
+  created_at: string;
+  product?: { nom: string; unite: string } | null;
+};
+
+export function useStockMovements(filters?: {
+  product_id?: string;
+  technicien_id?: string | null;
+  type?: StockMovementType;
+  dateFrom?: string;
+  dateTo?: string;
+}) {
+  return useQuery({
+    queryKey: ["stock_movements", filters],
+    queryFn: async (): Promise<StockMovement[]> => {
+      let q = db.from("stock_movements").select("*, product:stock_products(nom, unite)").order("created_at", { ascending: false });
+      if (filters?.product_id) q = q.eq("product_id", filters.product_id);
+      if (filters && "technicien_id" in filters && filters.technicien_id !== undefined) {
+        q = filters.technicien_id === null ? q.is("technicien_id", null) : q.eq("technicien_id", filters.technicien_id);
+      }
+      if (filters?.type) q = q.eq("type", filters.type);
+      if (filters?.dateFrom) q = q.gte("created_at", filters.dateFrom);
+      if (filters?.dateTo) q = q.lte("created_at", filters.dateTo);
+      const { data, error } = await q;
+      if (error) throw error;
+      return (data ?? []).map((m: any) => ({ ...m, quantite: Number(m.quantite) }));
+    },
+  });
+}
+
+export function useMyVanMovements() {
+  return useQuery({
+    queryKey: ["my_van_movements"],
+    queryFn: async (): Promise<StockMovement[]> => {
+      const { data: { user } } = await db.auth.getUser();
+      if (!user) return [];
+      const { data, error } = await db
+        .from("stock_movements")
+        .select("*, product:stock_products(nom, unite)")
+        .eq("technicien_id", user.id)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []).map((m: any) => ({ ...m, quantite: Number(m.quantite) }));
+    },
+  });
+}
+
+// Best-effort : un échec de journalisation ne doit jamais faire échouer
+// l'opération de stock elle-même (déjà appliquée à ce stade).
+export async function logStockMovement(params: {
+  product_id: string;
+  type: StockMovementType;
+  quantite: number;
+  technicien_id?: string | null;
+  intervention_id?: string | null;
+  note?: string | null;
+}): Promise<void> {
+  try {
+    const { data: { user } } = await db.auth.getUser();
+    const { error } = await db.from("stock_movements").insert({
+      product_id: params.product_id,
+      type: params.type,
+      quantite: params.quantite,
+      technicien_id: params.technicien_id ?? null,
+      intervention_id: params.intervention_id ?? null,
+      note: params.note ?? null,
+      created_by: user?.id,
+    });
+    if (error) console.error("[stock_movements] insert failed:", error);
+  } catch (e) {
+    console.error("[stock_movements] insert failed:", e);
+  }
+}
+
 export type ProductStat = {
   id: string;
   nom: string;
@@ -567,15 +652,17 @@ export function useDashboardStats() {
       const prevMonthStart = localDate(new Date(_now.getFullYear(), _now.getMonth() - 1, 1));
       const prevMonthEnd = localDate(new Date(_now.getFullYear(), _now.getMonth(), 0));
 
-      const [todayRes, todayInterventions, monthRes, prevMonthRes, unpaidRes, contractsRes, stockProductsRes, stockLevelsRes] = await Promise.all([
+      const [todayRes, todayInterventions, monthRes, prevMonthRes, unpaidRes, contractsRes, stockLevelsRes, teamRes, roleRes, userRes] = await Promise.all([
         db.from("interventions").select("*", { count: "exact", head: true }).eq("date", today),
         db.from("interventions").select("*, client:clients(raison_sociale, telephone)").eq("date", today).order("created_at"),
         db.from("invoices").select("total_ttc, date_facture, statut").gte("date_facture", monthStart),
         db.from("invoices").select("total_ttc, statut").gte("date_facture", prevMonthStart).lte("date_facture", prevMonthEnd),
         db.from("invoices").select("id, total_ttc, statut, echeance, client:clients(raison_sociale)").in("statut", ["envoyee", "retard"]),
         db.from("contracts").select("*, client:clients(raison_sociale)").eq("statut", "actif"),
-        db.from("stock_products").select("id, nom, unite, seuil_alerte"),
-        db.from("stock_levels").select("product_id, quantite"),
+        db.from("stock_levels").select("product_id, technicien_id, quantite, product:stock_products(nom, unite, seuil_alerte)"),
+        db.from("team_members").select("user_id, display_name, username"),
+        db.rpc("current_user_role"),
+        db.auth.getUser(),
       ]);
 
       const ca = (monthRes.data ?? [])
@@ -605,14 +692,37 @@ export function useDashboardStats() {
         .filter((c: any) => c.date_fin <= in30Days && c.date_fin >= today)
         .map((c: any) => ({ ...c, urgent: c.date_fin <= in7Days }));
 
-      // Alerte = stock total (garage + tous les camions) au seuil ou en dessous.
-      const levelTotals = new Map<string, number>();
-      for (const l of stockLevelsRes.data ?? []) {
-        levelTotals.set(l.product_id, (levelTotals.get(l.product_id) ?? 0) + Number(l.quantite ?? 0));
+      // Alertes par emplacement : chaque ligne garage/camion à ou sous son seuil.
+      // Le propriétaire/bureau voit tout ; un employé ne voit que son propre camion.
+      const memberNameById = new Map<string, string>();
+      for (const m of teamRes.data ?? []) {
+        memberNameById.set(m.user_id, m.display_name || m.username || "Sans nom");
       }
-      const stockAlerts = (stockProductsRes.data ?? [])
-        .map((p: any) => ({ ...p, quantite: levelTotals.get(p.id) ?? 0 }))
-        .filter((p: any) => p.quantite <= Number(p.seuil_alerte));
+      const role = roleRes.data as string | null;
+      const currentUserId = userRes.data.user?.id ?? null;
+
+      let stockAlerts = (stockLevelsRes.data ?? [])
+        .map((l: any) => {
+          const nom = l.product?.nom ?? "";
+          const unite = l.product?.unite ?? "";
+          const seuil = Number(l.product?.seuil_alerte ?? 0);
+          const quantite = Number(l.quantite ?? 0);
+          const locationLabel = l.technicien_id ? `Camion de ${memberNameById.get(l.technicien_id) ?? "technicien"}` : "Garage";
+          return {
+            product_id: l.product_id,
+            technicien_id: l.technicien_id as string | null,
+            nom,
+            unite,
+            quantite,
+            seuil,
+            label: `${locationLabel} : ${nom} (${quantite})`,
+          };
+        })
+        .filter((l) => l.quantite <= l.seuil);
+
+      if (role !== "owner") {
+        stockAlerts = stockAlerts.filter((l) => l.technicien_id === currentUserId);
+      }
 
       return {
         interventionsToday: todayRes.count ?? 0,
