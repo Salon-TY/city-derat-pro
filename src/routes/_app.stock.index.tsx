@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -11,14 +11,14 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, ArrowLeftRight, AlertTriangle, Package, Trash2, Pencil, Search, Truck, Warehouse } from "lucide-react";
+import { Plus, ArrowLeftRight, AlertTriangle, Package, Trash2, Pencil, Search, Truck, Warehouse, History, Filter, X } from "lucide-react";
 import {
   useStockProducts, useStockLevels, useMyVanStock, useAssignableMembers, useCurrentRole,
   useStockMovements, useMyVanMovements, logStockMovement, resolveTechnicianName,
   getGarageLevel, getVanLevel,
   type StockProduct, type StockLevel, type AssignableMember, type StockMovement, type StockMovementType,
 } from "@/lib/queries";
-import { stockProductSchema, type StockProductForm, UNITES_STOCK, UNITES_VOLUME, UNITES_UNITE, formatEUR } from "@/lib/schemas";
+import { stockProductSchema, type StockProductForm, UNITES_STOCK, UNITES_VOLUME, UNITES_UNITE, formatEUR, formatDateFR } from "@/lib/schemas";
 import { supabase } from "@/integrations/supabase/client";
 import { db } from "@/lib/db";
 import { cn } from "@/lib/utils";
@@ -37,8 +37,69 @@ function invalidateStock(qc: ReturnType<typeof useQueryClient>) {
   qc.invalidateQueries({ queryKey: ["stock_products"] });
   qc.invalidateQueries({ queryKey: ["stock_levels"] });
   qc.invalidateQueries({ queryKey: ["my_van_stock"] });
+  qc.invalidateQueries({ queryKey: ["stock_movements"] });
+  qc.invalidateQueries({ queryKey: ["my_van_movements"] });
   qc.invalidateQueries({ queryKey: ["product_stats"] });
   qc.invalidateQueries({ queryKey: ["dashboard"] });
+}
+
+function formatDateTime(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "—";
+  return d.toLocaleString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+
+const MOVEMENT_TYPE_LABELS: Record<StockMovementType, string> = {
+  entree: "Entrée garage",
+  transfert: "Réapprovisionnement",
+  consommation: "Consommation",
+  ajustement: "Ajustement",
+};
+
+function movementLabel(m: StockMovement, members: AssignableMember[]): string {
+  const nom = m.product?.nom ?? "Produit";
+  const unite = m.product?.unite ?? "";
+  const vanName = m.technicien_id ? resolveTechnicianName(members, m.technicien_id) ?? "technicien" : null;
+  switch (m.type) {
+    case "entree":
+      return `Entrée garage : +${m.quantite} ${unite} ${nom}`;
+    case "transfert":
+      return `Réappro → camion de ${vanName} : ${m.quantite} ${unite} ${nom}`;
+    case "consommation":
+      return `Consommation (${vanName ? `camion de ${vanName}` : "garage"}) : ${m.quantite} ${unite} ${nom}`;
+    case "ajustement": {
+      const signed = m.quantite > 0 ? `+${m.quantite}` : `${m.quantite}`;
+      return `Ajustement ${vanName ? `camion de ${vanName}` : "garage"} : ${signed} ${unite} ${nom}`;
+    }
+    default:
+      return nom;
+  }
+}
+
+function MovementRow({ m, members, showWho = true }: { m: StockMovement; members: AssignableMember[]; showWho?: boolean }) {
+  const who = showWho ? resolveTechnicianName(members, m.created_by) ?? "—" : null;
+  const content = (
+    <Card>
+      <CardContent className="p-3 space-y-1">
+        <div className="flex items-start justify-between gap-2">
+          <p className="text-sm font-medium">{movementLabel(m, members)}</p>
+          <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold uppercase text-muted-foreground">
+            {MOVEMENT_TYPE_LABELS[m.type]}
+          </span>
+        </div>
+        <div className="text-[11px] text-muted-foreground flex flex-wrap items-center gap-x-2">
+          <span>{formatDateTime(m.created_at)}</span>
+          {who && <><span className="opacity-50">·</span><span>par {who}</span></>}
+          {m.intervention_id && <><span className="opacity-50">·</span><span className="text-primary">Voir l'intervention</span></>}
+        </div>
+        {m.note && <p className="text-xs text-muted-foreground italic">{m.note}</p>}
+      </CardContent>
+    </Card>
+  );
+  return m.intervention_id
+    ? <Link to="/interventions/$id" params={{ id: m.intervention_id }}>{content}</Link>
+    : content;
 }
 
 function StockPage() {
@@ -49,8 +110,13 @@ function StockPage() {
 
 // ─── Vue technicien : "Mon camion" ─────────────────────────────────────────────
 
+type TechTab = "stock" | "history";
+
 function TechnicianVanView() {
+  const [tab, setTab] = useState<TechTab>("stock");
   const { data: levels = [], isLoading } = useMyVanStock();
+  const { data: movements = [], isLoading: movementsLoading } = useMyVanMovements();
+  const { data: members = [] } = useAssignableMembers();
   const [q, setQ] = useState("");
 
   const filtered = useMemo(() => {
@@ -67,46 +133,81 @@ function TechnicianVanView() {
         <h1 className="text-2xl font-bold tracking-tight">Mon camion</h1>
       </div>
 
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Rechercher un produit…" className="pl-9" />
+      <div className="flex rounded-xl bg-muted p-1 gap-1">
+        {([
+          { v: "stock" as TechTab, label: "Mon camion" },
+          { v: "history" as TechTab, label: "Historique" },
+        ]).map(({ v, label }) => (
+          <button
+            key={v}
+            onClick={() => setTab(v)}
+            className={cn(
+              "flex-1 rounded-lg py-1.5 text-xs font-semibold transition-all",
+              tab === v ? "bg-card shadow text-foreground" : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            {label}
+          </button>
+        ))}
       </div>
 
-      {isLoading ? (
-        <div className="py-10 text-center text-sm text-muted-foreground">Chargement…</div>
-      ) : filtered.length === 0 ? (
-        <Card><CardContent className="py-10 text-center text-sm text-muted-foreground">
-          <Package className="mx-auto mb-2 h-8 w-8 opacity-50" />
-          {levels.length === 0 ? "Aucun produit sur votre camion pour le moment." : "Aucun résultat."}
-        </CardContent></Card>
+      {tab === "stock" ? (
+        <>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Rechercher un produit…" className="pl-9" />
+          </div>
+
+          {isLoading ? (
+            <div className="py-10 text-center text-sm text-muted-foreground">Chargement…</div>
+          ) : filtered.length === 0 ? (
+            <Card><CardContent className="py-10 text-center text-sm text-muted-foreground">
+              <Package className="mx-auto mb-2 h-8 w-8 opacity-50" />
+              {levels.length === 0 ? "Aucun produit sur votre camion pour le moment." : "Aucun résultat."}
+            </CardContent></Card>
+          ) : (
+            <div className="space-y-2">
+              {filtered.map((l) => {
+                const low = l.product ? l.quantite <= l.product.seuil_alerte : false;
+                return (
+                  <Card key={l.id} className={low ? "border-destructive/40" : ""}>
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h3 className="font-semibold truncate">{l.product?.nom ?? "—"}</h3>
+                            {low && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-destructive px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-destructive-foreground">
+                                <AlertTriangle className="h-3 w-3" /> Stock bas
+                              </span>
+                            )}
+                          </div>
+                          <div className="mt-1 text-sm text-muted-foreground">
+                            <span className="font-medium text-foreground tabular-nums">{l.quantite}</span> {l.product?.unite}
+                            {l.product && <span className="opacity-50"> · Seuil : {l.product.seuil_alerte}</span>}
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </>
       ) : (
-        <div className="space-y-2">
-          {filtered.map((l) => {
-            const low = l.product ? l.quantite <= l.product.seuil_alerte : false;
-            return (
-              <Card key={l.id} className={low ? "border-destructive/40" : ""}>
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="font-semibold truncate">{l.product?.nom ?? "—"}</h3>
-                        {low && (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-destructive px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-destructive-foreground">
-                            <AlertTriangle className="h-3 w-3" /> Stock bas
-                          </span>
-                        )}
-                      </div>
-                      <div className="mt-1 text-sm text-muted-foreground">
-                        <span className="font-medium text-foreground tabular-nums">{l.quantite}</span> {l.product?.unite}
-                        {l.product && <span className="opacity-50"> · Seuil : {l.product.seuil_alerte}</span>}
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
+        movementsLoading ? (
+          <div className="py-10 text-center text-sm text-muted-foreground">Chargement…</div>
+        ) : movements.length === 0 ? (
+          <Card><CardContent className="py-10 text-center text-sm text-muted-foreground">
+            <History className="mx-auto mb-2 h-8 w-8 opacity-50" />
+            Aucun mouvement sur votre camion pour le moment.
+          </CardContent></Card>
+        ) : (
+          <div className="space-y-2">
+            {movements.map((m) => <MovementRow key={m.id} m={m} members={members} showWho={false} />)}
+          </div>
+        )
       )}
     </div>
   );
@@ -114,7 +215,7 @@ function TechnicianVanView() {
 
 // ─── Vue propriétaire / bureau ──────────────────────────────────────────────────
 
-type Tab = "catalogue" | "overview";
+type Tab = "catalogue" | "overview" | "history";
 
 function OwnerStockView() {
   const [tab, setTab] = useState<Tab>("overview");
@@ -245,6 +346,7 @@ function OwnerStockView() {
         {([
           { v: "overview" as Tab, label: "Vue d'ensemble" },
           { v: "catalogue" as Tab, label: "Catalogue" },
+          { v: "history" as Tab, label: "Historique" },
         ]).map(({ v, label }) => (
           <button
             key={v}
@@ -259,10 +361,12 @@ function OwnerStockView() {
         ))}
       </div>
 
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Rechercher un produit…" className="pl-9" />
-      </div>
+      {tab !== "history" && (
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Rechercher un produit…" className="pl-9" />
+        </div>
+      )}
 
       {tab === "overview" && (
         <>
@@ -326,6 +430,119 @@ function OwnerStockView() {
             {filteredProducts.map((p) => <CatalogueProductRow key={p.id} product={p} />)}
           </div>
         )
+      )}
+
+      {tab === "history" && <HistoryTab products={products} members={members} />}
+    </div>
+  );
+}
+
+// ─── Historique des mouvements (propriétaire) ──────────────────────────────────
+
+function HistoryTab({ products, members }: { products: StockProduct[]; members: AssignableMember[] }) {
+  const [productFilter, setProductFilter] = useState("all");
+  const [technicienFilter, setTechnicienFilter] = useState("all"); // all | garage | <user_id>
+  const [typeFilter, setTypeFilter] = useState<"all" | StockMovementType>("all");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [filtersOpen, setFiltersOpen] = useState(false);
+
+  const activeFiltersCount = [
+    productFilter !== "all" ? 1 : 0,
+    technicienFilter !== "all" ? 1 : 0,
+    typeFilter !== "all" ? 1 : 0,
+    dateFrom ? 1 : 0,
+    dateTo ? 1 : 0,
+  ].reduce((a, b) => a + b, 0);
+
+  const { data: movements = [], isLoading } = useStockMovements({
+    product_id: productFilter !== "all" ? productFilter : undefined,
+    technicien_id: technicienFilter === "all" ? undefined : technicienFilter === "garage" ? null : technicienFilter,
+    type: typeFilter !== "all" ? typeFilter : undefined,
+    dateFrom: dateFrom || undefined,
+    dateTo: dateTo ? `${dateTo}T23:59:59` : undefined,
+  });
+
+  function resetFilters() {
+    setProductFilter("all"); setTechnicienFilter("all"); setTypeFilter("all"); setDateFrom(""); setDateTo("");
+  }
+
+  return (
+    <div className="space-y-3">
+      <button
+        onClick={() => setFiltersOpen((v) => !v)}
+        className={cn(
+          "relative flex h-10 w-full items-center justify-center gap-1.5 rounded-xl border text-xs font-medium transition-colors",
+          filtersOpen || activeFiltersCount > 0
+            ? "bg-accent/10 border-accent text-accent"
+            : "bg-card border-border text-muted-foreground"
+        )}
+      >
+        <Filter className="h-3.5 w-3.5" /> Filtres
+        {activeFiltersCount > 0 && (
+          <span className="absolute right-3 flex h-4 w-4 items-center justify-center rounded-full bg-accent text-[9px] font-bold text-white">
+            {activeFiltersCount}
+          </span>
+        )}
+      </button>
+
+      {filtersOpen && (
+        <Card>
+          <CardContent className="p-3 space-y-3">
+            <Field label="Produit">
+              <Select value={productFilter} onValueChange={setProductFilter}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tous les produits</SelectItem>
+                  {products.map((p) => <SelectItem key={p.id} value={p.id}>{p.nom}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field label="Emplacement">
+              <Select value={technicienFilter} onValueChange={setTechnicienFilter}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tous les emplacements</SelectItem>
+                  <SelectItem value="garage">Garage</SelectItem>
+                  {members.map((m) => <SelectItem key={m.user_id} value={m.user_id}>Camion de {m.display_name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field label="Type">
+              <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v as any)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tous les types</SelectItem>
+                  {(Object.keys(MOVEMENT_TYPE_LABELS) as StockMovementType[]).map((t) => (
+                    <SelectItem key={t} value={t}>{MOVEMENT_TYPE_LABELS[t]}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Du"><Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} /></Field>
+              <Field label="Au"><Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} /></Field>
+            </div>
+            {activeFiltersCount > 0 && (
+              <button onClick={resetFilters} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+                <X className="h-3.5 w-3.5" /> Réinitialiser
+              </button>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {isLoading ? (
+        <div className="py-10 text-center text-sm text-muted-foreground">Chargement…</div>
+      ) : movements.length === 0 ? (
+        <Card><CardContent className="py-10 text-center text-sm text-muted-foreground">
+          <History className="mx-auto mb-2 h-8 w-8 opacity-50" />
+          Aucun mouvement pour ces filtres.
+        </CardContent></Card>
+      ) : (
+        <div className="space-y-2">
+          {movements.map((m) => <MovementRow key={m.id} m={m} members={members} />)}
+        </div>
       )}
     </div>
   );
