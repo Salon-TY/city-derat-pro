@@ -52,6 +52,7 @@ function NewIntervention() {
     const payload = {
       ...values,
       contract_id: values.contract_id || null,
+      technicien_id: values.technicien_id || null,
       date_prochain_passage: values.date_prochain_passage || null,
       user_id: userId,
       photos: photoUrls.length > 0 ? photoUrls : null,

@@ -203,6 +203,7 @@ export type Database = {
           produits: string | null
           quantite: string | null
           statut: string
+          technicien_id: string | null
           type_intervention: string
           type_nuisible: string | null
           updated_at: string
@@ -220,6 +221,7 @@ export type Database = {
           produits?: string | null
           quantite?: string | null
           statut?: string
+          technicien_id?: string | null
           type_intervention?: string
           type_nuisible?: string | null
           updated_at?: string
@@ -237,6 +239,7 @@ export type Database = {
           produits?: string | null
           quantite?: string | null
           statut?: string
+          technicien_id?: string | null
           type_intervention?: string
           type_nuisible?: string | null
           updated_at?: string

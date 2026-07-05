@@ -8,7 +8,7 @@ import {
   TYPES_INTERVENTION,
   STATUTS_INTERVENTION,
 } from "@/lib/schemas";
-import { useClients, useStockProducts, useContracts } from "@/lib/queries";
+import { useClients, useStockProducts, useContracts, useAssignableMembers } from "@/lib/queries";
 import { db } from "@/lib/db";
 
 export type StockUsageItem = {
@@ -69,6 +69,7 @@ export function InterventionForm({
   const { data: clients = [], refetch: refetchClients } = useClients();
   const { data: stockProducts = [] } = useStockProducts();
   const { data: contracts = [] } = useContracts();
+  const { data: assignableMembers = [] } = useAssignableMembers();
   const qc = useQueryClient();
   const [showNewClient, setShowNewClient] = useState(false);
   const [newClientName, setNewClientName] = useState("");
@@ -135,6 +136,7 @@ export function InterventionForm({
     defaultValues: {
       client_id: defaultValues?.client_id ?? "",
       contract_id: defaultValues?.contract_id ?? "",
+      technicien_id: defaultValues?.technicien_id ?? undefined,
       date: defaultValues?.date ?? new Date().toISOString().slice(0, 10),
       adresse_site: defaultValues?.adresse_site ?? "",
       type_nuisible: defaultValues?.type_nuisible ?? "",
@@ -168,6 +170,20 @@ export function InterventionForm({
       form.setValue("contract_id", "");
     }
   }, [clientId, clientContracts]);
+
+  // Pré-sélectionne le technicien connecté s'il fait partie de l'équipe assignable,
+  // uniquement à la création (pas de valeur déjà fournie/éditée).
+  useEffect(() => {
+    if (defaultValues?.technicien_id) return;
+    if (form.getValues("technicien_id")) return;
+    if (assignableMembers.length === 0) return;
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user && assignableMembers.some((m) => m.user_id === user.id)) {
+        form.setValue("technicien_id", user.id);
+      }
+    })();
+  }, [assignableMembers]);
 
 
   async function createClient() {
@@ -403,6 +419,21 @@ export function InterventionForm({
           </Select>
         </Field>
       </div>
+
+      <Field label="Technicien assigné">
+        <Select
+          value={form.watch("technicien_id") ?? "none"}
+          onValueChange={(v) => form.setValue("technicien_id", v === "none" ? undefined : v)}
+        >
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">Non assigné</SelectItem>
+            {assignableMembers.map((m) => (
+              <SelectItem key={m.user_id} value={m.user_id}>{m.display_name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </Field>
 
       <Field label="Adresse du site (auto)">
         <Textarea rows={2} {...form.register("adresse_site")} />

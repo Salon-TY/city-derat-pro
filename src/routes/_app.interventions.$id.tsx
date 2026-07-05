@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useIntervention, useSettings, useProduitsBiocides, useContracts } from "@/lib/queries";
+import { useIntervention, useSettings, useProduitsBiocides, useContracts, useAssignableMembers, resolveTechnicianName } from "@/lib/queries";
 import { formatDateFR, STATUTS_INTERVENTION } from "@/lib/schemas";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -63,6 +63,8 @@ function InterventionDetail() {
   const { data: settings } = useSettings();
   const { data: produitsBiocides = [] } = useProduitsBiocides();
   const { data: contracts = [] } = useContracts();
+  const { data: assignableMembers = [] } = useAssignableMembers();
+  const technicienName = resolveTechnicianName(assignableMembers, intervention?.technicien_id) ?? settings?.nom_technicien ?? null;
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [uploadingPhotos, setUploadingPhotos] = useState(false);
   const [showSignatureCanvas, setShowSignatureCanvas] = useState(false);
@@ -110,6 +112,14 @@ function InterventionDetail() {
     await db.from("interventions").update({ contract_id: contractId || null }).eq("id", id);
     qc.invalidateQueries({ queryKey: ["intervention", id] });
     toast.success("Contrat rattaché mis à jour");
+  }
+
+  // ── Technicien assigné ──────────────────────────────────────────────────────
+
+  async function handleTechnicienChange(technicienId: string) {
+    await db.from("interventions").update({ technicien_id: technicienId === "none" ? null : technicienId }).eq("id", id);
+    qc.invalidateQueries({ queryKey: ["intervention", id] });
+    toast.success("Technicien assigné mis à jour");
   }
 
   // ── Compteur de passages contrat ─────────────────────────────────────────────
@@ -269,6 +279,7 @@ function InterventionDetail() {
     <div class="row"><span class="lbl">Produits utilisés :</span><span class="val">${intervention.produits || "—"}</span></div>
     <div class="row"><span class="lbl">Quantités :</span><span class="val">${intervention.quantite || "—"}</span></div>
     ${intervention.date_prochain_passage ? `<div class="row"><span class="lbl">Prochain passage :</span><span class="val">${formatDateFR(intervention.date_prochain_passage)}</span></div>` : ""}
+    ${technicienName ? `<div class="row"><span class="lbl">Réalisé par :</span><span class="val">${technicienName}</span></div>` : ""}
   </div>
 
   ${intervention.observations ? `
@@ -281,7 +292,7 @@ function InterventionDetail() {
 
   <div class="signature-zone">
     <div class="sig-box">
-      <div class="sig-line">Signature du technicien</div>
+      <div class="sig-line">Signature du technicien${technicienName ? ` — ${technicienName}` : ""}</div>
     </div>
     <div class="sig-box">${sigHtml}</div>
   </div>
@@ -410,7 +421,7 @@ function InterventionDetail() {
     </div>
     <div class="info-box">
       <div class="lbl">Technicien</div>
-      <div class="val">${s?.nom_technicien || s?.nom || "CITY DERAT"}</div>
+      <div class="val">${technicienName || s?.nom || "CITY DERAT"}</div>
     </div>
   </div>
 </div>
@@ -466,7 +477,7 @@ ${intervention.observations ? `
 <div class="sig-row">
   <div class="sig-col">
     <div class="sig-label">Signature du technicien</div>
-    <div style="border-top:1px solid #ccc;margin-top:40px;padding-top:4px;font-size:9px;color:#9ca3af">${s?.nom_technicien || ""}</div>
+    <div style="border-top:1px solid #ccc;margin-top:40px;padding-top:4px;font-size:9px;color:#9ca3af">${technicienName || ""}</div>
   </div>
   <div class="sig-col">
     <div class="sig-label">Signature du client</div>
@@ -651,6 +662,18 @@ ${intervention.observations ? `
                   <SelectItem key={c.id} value={c.id}>
                     {c.numero ? `${c.numero} — ` : ""}{c.nom_etablissement || "Établissement"}
                   </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Technicien assigné</div>
+            <Select value={intervention.technicien_id ?? "none"} onValueChange={handleTechnicienChange}>
+              <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Non assigné" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Non assigné</SelectItem>
+                {assignableMembers.map((m) => (
+                  <SelectItem key={m.user_id} value={m.user_id}>{m.display_name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>

@@ -31,6 +31,7 @@ export type Intervention = {
   user_id: string;
   client_id: string;
   contract_id?: string | null;
+  technicien_id?: string | null;
   date: string;
   adresse_site: string;
   type_nuisible: string;
@@ -416,6 +417,37 @@ export function useTeamMembers() {
       return data ?? [];
     },
   });
+}
+
+export type AssignableMember = {
+  user_id: string;
+  display_name: string;
+  role: string;
+  username: string | null;
+};
+
+export function useAssignableMembers() {
+  return useQuery({
+    queryKey: ["assignable_members"],
+    queryFn: async (): Promise<AssignableMember[]> => {
+      const { data, error } = await db.from("team_members").select("user_id, display_name, role, username").eq("active", true).order("display_name");
+      if (error) throw error;
+      return (data ?? []).map((m: any) => ({
+        user_id: m.user_id,
+        display_name: m.display_name || m.username || "Sans nom",
+        role: m.role,
+        username: m.username,
+      }));
+    },
+  });
+}
+
+export function resolveTechnicianName(
+  members: AssignableMember[] | undefined,
+  technicienId: string | null | undefined
+): string | null {
+  if (!technicienId || !members) return null;
+  return members.find((m) => m.user_id === technicienId)?.display_name ?? null;
 }
 
 export function useMyAccess() {
