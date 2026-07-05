@@ -382,6 +382,40 @@ export function useInvoice(id: string | undefined) {
   });
 }
 
+export type TeamMember = {
+  id: string;
+  owner_id: string;
+  user_id: string;
+  email: string;
+  username: string | null;
+  display_name: string | null;
+  role: string;
+  active: boolean;
+  created_at: string;
+};
+
+export function useCurrentRole() {
+  return useQuery({
+    queryKey: ["current_role"],
+    queryFn: async (): Promise<"owner" | "employe" | "disabled"> => {
+      const { data, error } = await db.rpc("current_user_role");
+      if (error) throw error;
+      return data as "owner" | "employe" | "disabled";
+    },
+  });
+}
+
+export function useTeamMembers() {
+  return useQuery({
+    queryKey: ["team_members"],
+    queryFn: async (): Promise<TeamMember[]> => {
+      const { data, error } = await db.from("team_members").select("*").eq("role", "employe").order("created_at", { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+}
+
 export function useSettings() {
   return useQuery({
     queryKey: ["settings"],

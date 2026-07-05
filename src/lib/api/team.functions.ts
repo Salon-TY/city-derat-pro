@@ -1,20 +1,14 @@
 import { createServerFn } from "@tanstack/react-start";
-import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 
-import type { Database } from "@/integrations/supabase/types";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { normalizeUsername, usernameToEmail, USERNAME_RE } from "@/lib/team";
 
-// Client service-role construit à l'appel (jamais au chargement du module) :
-// sur les runtimes serverless/edge les variables d'env ne sont fiables qu'à
-// l'intérieur d'une requête.
-function adminClient() {
-  const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) throw new Error("Configuration serveur manquante (SUPABASE_SERVICE_ROLE_KEY).");
-  return createClient<Database>(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
-}
+// IMPORTANT : le client service-role (supabaseAdmin) est chargé via un import
+// dynamique DANS chaque handler, jamais au niveau module. Le code de module
+// d'un fichier *.functions.ts est expédié au bundle client ; seul un module
+// *.server.ts importé dynamiquement à l'intérieur d'un handler est exclu du
+// bundle client (voir le commentaire dans client.server.ts).
 
 async function requireOwner(context: { supabase: any }) {
   const { data, error } = await context.supabase.rpc("current_user_role");
@@ -38,7 +32,7 @@ export const createEmployee = createServerFn({ method: "POST" })
       throw new Error("Identifiant invalide (3 à 30 caractères : lettres, chiffres, . _ -).");
     }
 
-    const admin = adminClient();
+    const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
 
     const { data: existing } = await admin
       .from("team_members")
@@ -84,7 +78,7 @@ export const resetEmployeePassword = createServerFn({ method: "POST" })
   }))
   .handler(async ({ data, context }) => {
     await requireOwner(context);
-    const admin = adminClient();
+    const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
 
     const { data: member, error } = await admin
       .from("team_members")
@@ -111,7 +105,7 @@ export const setEmployeeActive = createServerFn({ method: "POST" })
   }))
   .handler(async ({ data, context }) => {
     await requireOwner(context);
-    const admin = adminClient();
+    const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
 
     const { data: member, error } = await admin
       .from("team_members")
@@ -143,7 +137,7 @@ export const deleteEmployee = createServerFn({ method: "POST" })
   }))
   .handler(async ({ data, context }) => {
     await requireOwner(context);
-    const admin = adminClient();
+    const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
 
     const { data: member, error } = await admin
       .from("team_members")

@@ -19,6 +19,7 @@ import { Route as AppParametresRouteImport } from './routes/_app.parametres'
 import { Route as AppStockIndexRouteImport } from './routes/_app.stock.index'
 import { Route as AppInterventionsIndexRouteImport } from './routes/_app.interventions.index'
 import { Route as AppFacturesIndexRouteImport } from './routes/_app.factures.index'
+import { Route as AppEquipeIndexRouteImport } from './routes/_app.equipe.index'
 import { Route as AppDevisIndexRouteImport } from './routes/_app.devis.index'
 import { Route as AppContratsIndexRouteImport } from './routes/_app.contrats.index'
 import { Route as AppClientsIndexRouteImport } from './routes/_app.clients.index'
@@ -79,6 +80,11 @@ const AppInterventionsIndexRoute = AppInterventionsIndexRouteImport.update({
 const AppFacturesIndexRoute = AppFacturesIndexRouteImport.update({
   id: '/factures/',
   path: '/factures/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppEquipeIndexRoute = AppEquipeIndexRouteImport.update({
+  id: '/equipe/',
+  path: '/equipe/',
   getParentRoute: () => AppRoute,
 } as any)
 const AppDevisIndexRoute = AppDevisIndexRouteImport.update({
@@ -161,6 +167,7 @@ export interface FileRoutesByFullPath {
   '/clients/': typeof AppClientsIndexRoute
   '/contrats/': typeof AppContratsIndexRoute
   '/devis/': typeof AppDevisIndexRoute
+  '/equipe/': typeof AppEquipeIndexRoute
   '/factures/': typeof AppFacturesIndexRoute
   '/interventions/': typeof AppInterventionsIndexRoute
   '/stock/': typeof AppStockIndexRoute
@@ -184,6 +191,7 @@ export interface FileRoutesByTo {
   '/clients': typeof AppClientsIndexRoute
   '/contrats': typeof AppContratsIndexRoute
   '/devis': typeof AppDevisIndexRoute
+  '/equipe': typeof AppEquipeIndexRoute
   '/factures': typeof AppFacturesIndexRoute
   '/interventions': typeof AppInterventionsIndexRoute
   '/stock': typeof AppStockIndexRoute
@@ -209,6 +217,7 @@ export interface FileRoutesById {
   '/_app/clients/': typeof AppClientsIndexRoute
   '/_app/contrats/': typeof AppContratsIndexRoute
   '/_app/devis/': typeof AppDevisIndexRoute
+  '/_app/equipe/': typeof AppEquipeIndexRoute
   '/_app/factures/': typeof AppFacturesIndexRoute
   '/_app/interventions/': typeof AppInterventionsIndexRoute
   '/_app/stock/': typeof AppStockIndexRoute
@@ -234,6 +243,7 @@ export interface FileRouteTypes {
     | '/clients/'
     | '/contrats/'
     | '/devis/'
+    | '/equipe/'
     | '/factures/'
     | '/interventions/'
     | '/stock/'
@@ -257,6 +267,7 @@ export interface FileRouteTypes {
     | '/clients'
     | '/contrats'
     | '/devis'
+    | '/equipe'
     | '/factures'
     | '/interventions'
     | '/stock'
@@ -281,6 +292,7 @@ export interface FileRouteTypes {
     | '/_app/clients/'
     | '/_app/contrats/'
     | '/_app/devis/'
+    | '/_app/equipe/'
     | '/_app/factures/'
     | '/_app/interventions/'
     | '/_app/stock/'
@@ -361,6 +373,13 @@ declare module '@tanstack/react-router' {
       path: '/factures'
       fullPath: '/factures/'
       preLoaderRoute: typeof AppFacturesIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/equipe/': {
+      id: '/_app/equipe/'
+      path: '/equipe'
+      fullPath: '/equipe/'
+      preLoaderRoute: typeof AppEquipeIndexRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/devis/': {
@@ -468,6 +487,7 @@ interface AppRouteChildren {
   AppClientsIndexRoute: typeof AppClientsIndexRoute
   AppContratsIndexRoute: typeof AppContratsIndexRoute
   AppDevisIndexRoute: typeof AppDevisIndexRoute
+  AppEquipeIndexRoute: typeof AppEquipeIndexRoute
   AppFacturesIndexRoute: typeof AppFacturesIndexRoute
   AppInterventionsIndexRoute: typeof AppInterventionsIndexRoute
   AppStockIndexRoute: typeof AppStockIndexRoute
@@ -491,6 +511,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppClientsIndexRoute: AppClientsIndexRoute,
   AppContratsIndexRoute: AppContratsIndexRoute,
   AppDevisIndexRoute: AppDevisIndexRoute,
+  AppEquipeIndexRoute: AppEquipeIndexRoute,
   AppFacturesIndexRoute: AppFacturesIndexRoute,
   AppInterventionsIndexRoute: AppInterventionsIndexRoute,
   AppStockIndexRoute: AppStockIndexRoute,
