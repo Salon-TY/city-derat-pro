@@ -9,13 +9,18 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
 } from "recharts";
 import { TrendingUp, TrendingDown, Minus, Download, Mail, ChevronDown, ChevronUp, ArrowRight, Bell } from "lucide-react";
-import { useRelances, useSettings } from "@/lib/queries";
+import { useRelances, useSettings, useMyAccess } from "@/lib/queries";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
+import { PermissionGate } from "@/components/permission-gate";
 
 export const Route = createFileRoute("/_app/tresorerie")({
   head: () => ({ meta: [{ title: "Trésorerie — CITY DERAT" }] }),
-  component: TresoreriePage,
+  component: () => (
+    <PermissionGate perm="tresorerie">
+      <TresoreriePage />
+    </PermissionGate>
+  ),
 });
 
 type Period = "mois" | "trimestre" | "annee";
@@ -133,6 +138,7 @@ function TresoreriePage() {
   const { data, isLoading } = useTresorerieData(period);
   const { data: relances = [] } = useRelances();
   const { data: settings } = useSettings();
+  const { can } = useMyAccess();
 
   // Build per-invoice latest relance niveau
   const relanceNiveauMap = useMemo(() => {
@@ -192,9 +198,11 @@ function TresoreriePage() {
           <h1 className="text-2xl font-bold tracking-tight">Trésorerie</h1>
           <p className="text-sm text-muted-foreground">Suivi financier de votre activité.</p>
         </div>
-        <Button size="sm" variant="outline" onClick={handleExport} disabled={exporting}>
-          <Download className="h-4 w-4 mr-1.5" />{exporting ? "Export…" : "Excel"}
-        </Button>
+        {can("export") && (
+          <Button size="sm" variant="outline" onClick={handleExport} disabled={exporting}>
+            <Download className="h-4 w-4 mr-1.5" />{exporting ? "Export…" : "Excel"}
+          </Button>
+        )}
       </div>
 
       {/* Boutons raccourci */}

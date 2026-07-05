@@ -10,10 +10,15 @@ import { useQueryClient } from "@tanstack/react-query";
 import { formatDateFR, STATUTS_INTERVENTION, STATUTS_CONTRAT } from "@/lib/schemas";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import type { ClientForm as ClientFormType } from "@/lib/schemas";
+import { PermissionGate } from "@/components/permission-gate";
 
 export const Route = createFileRoute("/_app/clients/$id")({
   head: () => ({ meta: [{ title: "Fiche client — CITY DERAT" }] }),
-  component: ClientDetail,
+  component: () => (
+    <PermissionGate perm="clients">
+      <ClientDetail />
+    </PermissionGate>
+  ),
 });
 
 function statutLabel(list: readonly { value: string; label: string }[], v: string) {

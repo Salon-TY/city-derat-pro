@@ -19,6 +19,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Plus, AlertTriangle, CheckCircle2, Clock, Trash2, Search, Filter, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { PermissionGate } from "@/components/permission-gate";
 
 function addMonths(dateStr: string, months: number): string {
   const d = new Date(dateStr + "T00:00:00");
@@ -40,7 +41,11 @@ export async function nextContractNumero(): Promise<string> {
 
 export const Route = createFileRoute("/_app/contrats/")({
   head: () => ({ meta: [{ title: "Contrats — CITY DERAT" }] }),
-  component: ContratsPage,
+  component: () => (
+    <PermissionGate perm="contrats">
+      <ContratsPage />
+    </PermissionGate>
+  ),
 });
 
 const STATUT_ICONS: Record<string, React.ReactNode> = {

@@ -22,10 +22,15 @@ import {
   AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { PermissionGate } from "@/components/permission-gate";
 
 export const Route = createFileRoute("/_app/contrats/$id")({
   head: () => ({ meta: [{ title: "Contrat — CITY DERAT" }] }),
-  component: ContractDetail,
+  component: () => (
+    <PermissionGate perm="contrats">
+      <ContractDetail />
+    </PermissionGate>
+  ),
 });
 
 function statutLabel(v: string) {

@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { db } from "./db";
+import type { PermissionKey } from "./permissions";
 
 function localDate(d: Date): string {
   const y = d.getFullYear();
@@ -391,6 +392,7 @@ export type TeamMember = {
   display_name: string | null;
   role: string;
   active: boolean;
+  permissions?: Record<string, boolean> | null;
   created_at: string;
 };
 
@@ -414,6 +416,31 @@ export function useTeamMembers() {
       return data ?? [];
     },
   });
+}
+
+export function useMyAccess() {
+  const { data: role, isLoading: roleLoading } = useCurrentRole();
+  const permQuery = useQuery({
+    queryKey: ["my_permissions"],
+    queryFn: async (): Promise<Record<string, boolean>> => {
+      const { data: { user } } = await db.auth.getUser();
+      if (!user) return {};
+      const { data, error } = await db.from("team_members").select("permissions").eq("user_id", user.id).maybeSingle();
+      if (error) throw error;
+      return (data?.permissions as Record<string, boolean>) ?? {};
+    },
+  });
+
+  const loading = roleLoading || permQuery.isLoading;
+
+  function can(key: PermissionKey | "terrain" | "equipe"): boolean {
+    if (key === "terrain") return true;
+    if (role === "owner") return true;
+    if (key === "equipe") return false;
+    return permQuery.data?.[key] === true;
+  }
+
+  return { role, loading, can };
 }
 
 export function useSettings() {

@@ -17,10 +17,15 @@ import { stockProductSchema, type StockProductForm, UNITES_STOCK, UNITES_VOLUME,
 import { supabase } from "@/integrations/supabase/client";
 import { db } from "@/lib/db";
 import { cn } from "@/lib/utils";
+import { PermissionGate } from "@/components/permission-gate";
 
 export const Route = createFileRoute("/_app/stock/")({
   head: () => ({ meta: [{ title: "Stock — CITY DERAT" }] }),
-  component: StockPage,
+  component: () => (
+    <PermissionGate perm="stock">
+      <StockPage />
+    </PermissionGate>
+  ),
 });
 
 type StockFilter = "all" | "low" | "empty";

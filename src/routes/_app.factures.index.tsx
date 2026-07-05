@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { db } from "@/lib/db";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
+import { PermissionGate } from "@/components/permission-gate";
 
 const searchSchema = z.object({
   statut: fallback(z.string(), "all").default("all"),
@@ -20,7 +21,11 @@ const searchSchema = z.object({
 export const Route = createFileRoute("/_app/factures/")({
   head: () => ({ meta: [{ title: "Factures — CITY DERAT" }] }),
   validateSearch: zodValidator(searchSchema),
-  component: FacturesPage,
+  component: () => (
+    <PermissionGate perm="factures">
+      <FacturesPage />
+    </PermissionGate>
+  ),
 });
 
 const STATUT_COLORS: Record<string, string> = {

@@ -22,10 +22,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useState, useEffect } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { PermissionGate } from "@/components/permission-gate";
 
 export const Route = createFileRoute("/_app/factures/$id")({
   head: () => ({ meta: [{ title: "Facture — CITY DERAT" }] }),
-  component: FactureDetail,
+  component: () => (
+    <PermissionGate perm="factures">
+      <FactureDetail />
+    </PermissionGate>
+  ),
 });
 
 const STATUT_COLORS: Record<string, string> = {

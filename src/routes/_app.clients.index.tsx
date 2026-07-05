@@ -6,10 +6,15 @@ import { Button } from "@/components/ui/button";
 import { useClients } from "@/lib/queries";
 import { Plus, Search, Phone, MapPin, ChevronRight, Filter, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { PermissionGate } from "@/components/permission-gate";
 
 export const Route = createFileRoute("/_app/clients/")({
   head: () => ({ meta: [{ title: "Clients — CITY DERAT" }] }),
-  component: ClientsList,
+  component: () => (
+    <PermissionGate perm="clients">
+      <ClientsList />
+    </PermissionGate>
+  ),
 });
 
 function ClientsList() {

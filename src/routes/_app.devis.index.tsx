@@ -7,10 +7,15 @@ import { useQuotes } from "@/lib/queries";
 import { formatEUR, formatDateFR, STATUTS_DEVIS } from "@/lib/schemas";
 import { Plus, Search, ChevronRight, Filter, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { PermissionGate } from "@/components/permission-gate";
 
 export const Route = createFileRoute("/_app/devis/")({
   head: () => ({ meta: [{ title: "Devis — CITY DERAT" }] }),
-  component: DevisListPage,
+  component: () => (
+    <PermissionGate perm="devis">
+      <DevisListPage />
+    </PermissionGate>
+  ),
 });
 
 const STATUT_COLORS: Record<string, string> = {

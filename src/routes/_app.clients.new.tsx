@@ -6,10 +6,15 @@ import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { ClientForm as ClientFormType } from "@/lib/schemas";
+import { PermissionGate } from "@/components/permission-gate";
 
 export const Route = createFileRoute("/_app/clients/new")({
   head: () => ({ meta: [{ title: "Nouveau client — CITY DERAT" }] }),
-  component: NewClient,
+  component: () => (
+    <PermissionGate perm="clients">
+      <NewClient />
+    </PermissionGate>
+  ),
 });
 
 function NewClient() {

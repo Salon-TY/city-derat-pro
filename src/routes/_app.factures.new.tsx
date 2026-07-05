@@ -18,6 +18,7 @@ import { Plus, Trash2, ArrowLeft, UserPlus, X } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { PermissionGate } from "@/components/permission-gate";
 
 const searchSchema = z.object({
   client_id: z.string().optional(),
@@ -27,7 +28,11 @@ const searchSchema = z.object({
 export const Route = createFileRoute("/_app/factures/new")({
   head: () => ({ meta: [{ title: "Nouvelle facture — CITY DERAT" }] }),
   validateSearch: zodValidator(searchSchema),
-  component: NouvelleFacture,
+  component: () => (
+    <PermissionGate perm="factures">
+      <NouvelleFacture />
+    </PermissionGate>
+  ),
 });
 
 const PRESETS_DEFAULT = [

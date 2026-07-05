@@ -13,10 +13,15 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { ArrowLeft, Plus, Trash2 } from "lucide-react";
+import { PermissionGate } from "@/components/permission-gate";
 
 export const Route = createFileRoute("/_app/devis/new")({
   head: () => ({ meta: [{ title: "Nouveau devis — CITY DERAT" }] }),
-  component: NewDevisPage,
+  component: () => (
+    <PermissionGate perm="devis">
+      <NewDevisPage />
+    </PermissionGate>
+  ),
 });
 
 function localDateStr(d: Date) {

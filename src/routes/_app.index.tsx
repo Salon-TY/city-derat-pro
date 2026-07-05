@@ -9,10 +9,15 @@ import {
 } from "lucide-react";
 import { useQuotes } from "@/lib/queries";
 import { useMemo } from "react";
+import { PermissionGate } from "@/components/permission-gate";
 
 export const Route = createFileRoute("/_app/")({
   head: () => ({ meta: [{ title: "Tableau de bord — CITY DERAT" }] }),
-  component: Dashboard,
+  component: () => (
+    <PermissionGate perm="accueil">
+      <Dashboard />
+    </PermissionGate>
+  ),
 });
 
 function Dashboard() {

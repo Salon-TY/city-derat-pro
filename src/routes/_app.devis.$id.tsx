@@ -21,10 +21,15 @@ import {
 import { useState } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { PermissionGate } from "@/components/permission-gate";
 
 export const Route = createFileRoute("/_app/devis/$id")({
   head: () => ({ meta: [{ title: "Devis — CITY DERAT" }] }),
-  component: DevisDetail,
+  component: () => (
+    <PermissionGate perm="devis">
+      <DevisDetail />
+    </PermissionGate>
+  ),
 });
 
 const STATUT_COLORS: Record<string, string> = {

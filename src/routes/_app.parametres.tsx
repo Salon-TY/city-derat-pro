@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { settingsSchema, type SettingsForm } from "@/lib/schemas";
-import { useSettings, useProduitsBiocides, type ProduitBiocide } from "@/lib/queries";
+import { useSettings, useProduitsBiocides, useMyAccess, type ProduitBiocide } from "@/lib/queries";
 import { db } from "@/lib/db";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -16,10 +16,15 @@ import { BarChart2, ChevronRight, Download, ImageIcon, Plus, ShieldCheck, Trash2
 import * as XLSX from "xlsx";
 import { uploadCompanyLogo, deleteCompanyLogo } from "@/lib/photos";
 import { supabase } from "@/integrations/supabase/client";
+import { PermissionGate } from "@/components/permission-gate";
 
 export const Route = createFileRoute("/_app/parametres")({
   head: () => ({ meta: [{ title: "Paramètres — CITY DERAT" }] }),
-  component: ParametresPage,
+  component: () => (
+    <PermissionGate perm="parametres">
+      <ParametresPage />
+    </PermissionGate>
+  ),
 });
 
 const TYPES_BIOCIDE = ["Rodenticide", "Insecticide", "Autre"] as const;
@@ -150,6 +155,7 @@ function ProduitsEditor({ userId }: { userId: string }) {
 
 function ParametresPage() {
   const { data: settings } = useSettings();
+  const { can } = useMyAccess();
   const qc = useQueryClient();
   const [exporting, setExporting] = useState(false);
   const [logoUploading, setLogoUploading] = useState(false);
@@ -381,22 +387,24 @@ function ParametresPage() {
         </Card>
       </Link>
 
-      <Card>
-        <CardContent className="p-4 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
-              <Download className="h-5 w-5" />
+      {can("export") && (
+        <Card>
+          <CardContent className="p-4 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
+                <Download className="h-5 w-5" />
+              </div>
+              <div>
+                <div className="font-semibold text-sm">Sauvegarde des données</div>
+                <div className="text-xs text-muted-foreground">Clients, interventions, factures, contrats, stock</div>
+              </div>
             </div>
-            <div>
-              <div className="font-semibold text-sm">Sauvegarde des données</div>
-              <div className="text-xs text-muted-foreground">Clients, interventions, factures, contrats, stock</div>
-            </div>
-          </div>
-          <Button size="sm" variant="outline" onClick={handleExport} disabled={exporting}>
-            {exporting ? "Export…" : "Exporter Excel"}
-          </Button>
-        </CardContent>
-      </Card>
+            <Button size="sm" variant="outline" onClick={handleExport} disabled={exporting}>
+              {exporting ? "Export…" : "Exporter Excel"}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Logo société */}
       <Card><CardContent className="p-4 space-y-3">

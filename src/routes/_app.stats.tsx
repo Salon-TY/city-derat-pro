@@ -5,10 +5,15 @@ import { Card, CardContent } from "@/components/ui/card";
 import { TrendingUp, TrendingDown, Minus, UserPlus, ClipboardCheck, Euro, Trophy, Package } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import { cn } from "@/lib/utils";
+import { PermissionGate } from "@/components/permission-gate";
 
 export const Route = createFileRoute("/_app/stats")({
   head: () => ({ meta: [{ title: "Statistiques — CITY DERAT" }] }),
-  component: StatsPage,
+  component: () => (
+    <PermissionGate perm="stats">
+      <StatsPage />
+    </PermissionGate>
+  ),
 });
 
 function StatsPage() {
