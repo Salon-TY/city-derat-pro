@@ -2,11 +2,17 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { useCurrentRole, useTeamMembers, type TeamMember } from "@/lib/queries";
 import { USERNAME_RE } from "@/lib/team";
+import {
+  ALL_PERMISSION_KEYS, PERMISSION_LABELS, PRESET_BUREAU, PRESET_TECHNICIEN,
+  presetToPermissions, type PermissionKey,
+} from "@/lib/permissions";
 import { createEmployee, resetEmployeePassword, setEmployeeActive, deleteEmployee } from "@/lib/api/team.functions";
+import { db } from "@/lib/db";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -15,7 +21,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
-import { Plus, Trash2, KeyRound, ShieldOff, ShieldCheck, Users } from "lucide-react";
+import { Plus, Trash2, KeyRound, ShieldOff, ShieldCheck, Users, Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_app/equipe/")({
@@ -152,6 +158,72 @@ function ResetPasswordDialog({ memberId, open, onOpenChange }: { memberId: strin
   );
 }
 
+// ─── Autorisations ──────────────────────────────────────────────────────────────
+
+function PermissionsEditor({ member }: { member: TeamMember }) {
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [perms, setPerms] = useState<Record<string, boolean>>(() => ({ ...(member.permissions ?? {}) }));
+  const [saving, setSaving] = useState(false);
+
+  function toggle(key: PermissionKey) {
+    setPerms((p) => ({ ...p, [key]: !p[key] }));
+  }
+
+  function applyPreset(keys: PermissionKey[]) {
+    setPerms(presetToPermissions(keys));
+  }
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      const { error } = await db.from("team_members").update({ permissions: perms }).eq("id", member.id);
+      if (error) throw error;
+      qc.invalidateQueries({ queryKey: ["team_members"] });
+      toast.success("Autorisations enregistrées");
+    } catch (e) {
+      toast.error(errMessage(e));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="border-t pt-3">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground"
+      >
+        <Lock className="h-3.5 w-3.5" /> Autorisations {open ? "▲" : "▼"}
+      </button>
+      {open && (
+        <div className="mt-3 space-y-3">
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={() => applyPreset(PRESET_BUREAU)}>
+              Modèle Bureau
+            </Button>
+            <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={() => applyPreset(PRESET_TECHNICIEN)}>
+              Modèle Technicien
+            </Button>
+          </div>
+          <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+            {ALL_PERMISSION_KEYS.map((key) => (
+              <label key={key} className="flex items-center gap-2 text-xs cursor-pointer">
+                <Checkbox checked={!!perms[key]} onCheckedChange={() => toggle(key)} />
+                {PERMISSION_LABELS[key]}
+              </label>
+            ))}
+          </div>
+          <Button size="sm" className="w-full" disabled={saving} onClick={handleSave}>
+            {saving ? "Enregistrement…" : "Enregistrer les autorisations"}
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Ligne employé ──────────────────────────────────────────────────────────────
 
 function EmployeeRow({ member }: { member: TeamMember }) {
@@ -226,6 +298,7 @@ function EmployeeRow({ member }: { member: TeamMember }) {
             </AlertDialogContent>
           </AlertDialog>
         </div>
+        <PermissionsEditor member={member} />
       </CardContent>
       <ResetPasswordDialog memberId={member.id} open={resetOpen} onOpenChange={setResetOpen} />
     </Card>
@@ -262,6 +335,10 @@ function EquipePage() {
           <Plus className="mr-1 h-4 w-4" /> Ajouter un employé
         </Button>
       </div>
+
+      <p className="text-xs text-muted-foreground">
+        Terrain est toujours visible. L'onglet Équipe reste réservé au responsable.
+      </p>
 
       {membersLoading ? (
         <div className="text-center text-sm text-muted-foreground py-10">Chargement…</div>
