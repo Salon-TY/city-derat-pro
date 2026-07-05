@@ -1,8 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMonthlyStats, useProductStats } from "@/lib/queries";
+import { useEffect, useState } from "react";
+import { useMonthlyStats, useProductStats, useTechnicianStats, useCurrentRole, type TechnicianStatsEntry, type TechnicianStatsPeriod } from "@/lib/queries";
 import { formatEUR } from "@/lib/schemas";
+import { db } from "@/lib/db";
 import { Card, CardContent } from "@/components/ui/card";
-import { TrendingUp, TrendingDown, Minus, UserPlus, ClipboardCheck, Euro, Trophy, Package } from "lucide-react";
+import { TrendingUp, TrendingDown, Minus, UserPlus, ClipboardCheck, Euro, Trophy, Package, HardHat } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import { cn } from "@/lib/utils";
 import { PermissionGate } from "@/components/permission-gate";
@@ -194,7 +196,115 @@ function StatsPage() {
               )}
             </CardContent>
           </Card>
+
+          {/* Par technicien */}
+          <TechnicianStatsSection />
         </>
+      )}
+    </div>
+  );
+}
+
+// ─── Par technicien ─────────────────────────────────────────────────────────────
+
+const TECH_PERIODS: { v: TechnicianStatsPeriod; l: string }[] = [
+  { v: "mois", l: "Mois" },
+  { v: "annee", l: "Année" },
+  { v: "tout", l: "Tout" },
+];
+
+function TechnicianStatsSection() {
+  const [period, setPeriod] = useState<TechnicianStatsPeriod>("annee");
+  const { data: role } = useCurrentRole();
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  useEffect(() => {
+    db.auth.getUser().then(({ data }: any) => setCurrentUserId(data.user?.id ?? null));
+  }, []);
+  const { isLoading, technicians, nonAttribue } = useTechnicianStats(period);
+
+  const isOwner = role === "owner";
+  const visibleTechnicians = isOwner
+    ? technicians
+    : technicians.filter((t) => t.technicien_id === currentUserId);
+
+  return (
+    <Card>
+      <CardContent className="p-4 space-y-3">
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
+            <HardHat className="h-4 w-4 text-accent" /> Par technicien
+          </h2>
+          <div className="flex rounded-lg border border-border overflow-hidden shrink-0">
+            {TECH_PERIODS.map((p) => (
+              <button
+                key={p.v}
+                onClick={() => setPeriod(p.v)}
+                className={cn(
+                  "px-2.5 py-1 text-[11px] font-medium transition-colors",
+                  period === p.v ? "bg-primary text-primary-foreground" : "bg-card text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {p.l}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {isLoading ? (
+          <p className="text-sm text-muted-foreground py-6 text-center">Chargement…</p>
+        ) : visibleTechnicians.length === 0 ? (
+          <p className="text-sm text-muted-foreground py-6 text-center">Aucune donnée pour cette période.</p>
+        ) : (
+          <div className="space-y-3">
+            {visibleTechnicians.map((t) => <TechnicianStatCard key={t.technicien_id} tech={t} />)}
+          </div>
+        )}
+
+        {isOwner && !isLoading && (
+          <div className="pt-2 border-t text-xs text-muted-foreground flex justify-between gap-2">
+            <span>Non attribué — factures sans intervention/technicien lié</span>
+            <span className="font-semibold text-foreground shrink-0">{formatEUR(nonAttribue.caHt)}</span>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function TechnicianStatCard({ tech }: { tech: TechnicianStatsEntry }) {
+  const topNuisibles = Object.entries(tech.parNuisible).sort((a, b) => b[1] - a[1]).slice(0, 4);
+  const maxCount = Math.max(...topNuisibles.map(([, c]) => c), 1);
+
+  return (
+    <div className="rounded-xl border border-border p-3 space-y-2.5">
+      <div className="font-semibold text-sm">{tech.display_name}</div>
+      <div className="grid grid-cols-3 gap-2 text-center">
+        <div>
+          <div className="text-base font-bold tabular-nums">{tech.nbInterventions}</div>
+          <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Interv.</div>
+        </div>
+        <div>
+          <div className="text-base font-bold tabular-nums text-primary">{formatEUR(tech.caHt)}</div>
+          <div className="text-[10px] text-muted-foreground uppercase tracking-wide">CA HT</div>
+        </div>
+        <div>
+          <div className="text-base font-bold tabular-nums">{formatEUR(tech.consoValue)}</div>
+          <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Conso.</div>
+        </div>
+      </div>
+      {topNuisibles.length > 0 && (
+        <div className="space-y-1 pt-1">
+          <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Répartition par nuisible</div>
+          {topNuisibles.map(([nuisible, count]) => (
+            <div key={nuisible} className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground w-24 truncate shrink-0">{nuisible}</span>
+              <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
+                <div className="h-full rounded-full bg-accent" style={{ width: `${(count / maxCount) * 100}%` }} />
+              </div>
+              <span className="text-xs font-medium tabular-nums w-5 text-right shrink-0">{count}</span>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );
