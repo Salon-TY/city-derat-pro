@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { useMemo } from "react";
 import { db } from "./db";
 import type { PermissionKey } from "./permissions";
 
@@ -782,6 +783,121 @@ export function useQuote(id: string | undefined) {
       };
     },
   });
+}
+
+export type TechnicianStatsEntry = {
+  technicien_id: string;
+  display_name: string;
+  nbInterventions: number;
+  caHt: number;
+  consoValue: number;
+  parNuisible: Record<string, number>;
+};
+
+export type TechnicianStatsPeriod = "mois" | "annee" | "tout";
+
+function periodStartDate(period: TechnicianStatsPeriod): string | null {
+  const now = new Date();
+  if (period === "mois") return localDate(new Date(now.getFullYear(), now.getMonth(), 1));
+  if (period === "annee") return localDate(new Date(now.getFullYear(), 0, 1));
+  return null;
+}
+
+export function useTechnicianStats(period: TechnicianStatsPeriod) {
+  const membersQuery = useAssignableMembers();
+
+  const rawQuery = useQuery({
+    queryKey: ["technician_stats_raw", period],
+    queryFn: async () => {
+      const dateStart = periodStartDate(period);
+
+      let interventionsQ = db.from("interventions").select("technicien_id, type_nuisible, date");
+      if (dateStart) interventionsQ = interventionsQ.gte("date", dateStart);
+
+      let invoicesQ = db
+        .from("invoices")
+        .select("total_ht, statut, date_facture, intervention_id, intervention:interventions(technicien_id)")
+        .neq("statut", "brouillon");
+      if (dateStart) invoicesQ = invoicesQ.gte("date_facture", dateStart);
+
+      let movementsQ = db.from("stock_movements").select("technicien_id, product_id, quantite, created_at").eq("type", "consommation");
+      if (dateStart) movementsQ = movementsQ.gte("created_at", dateStart);
+
+      const [interventionsRes, invoicesRes, movementsRes, productsRes] = await Promise.all([
+        interventionsQ,
+        invoicesQ,
+        movementsQ,
+        db.from("stock_products").select("id, prix_achat_ht"),
+      ]);
+      if (interventionsRes.error) throw interventionsRes.error;
+      if (invoicesRes.error) throw invoicesRes.error;
+      if (movementsRes.error) throw movementsRes.error;
+      if (productsRes.error) throw productsRes.error;
+
+      return {
+        interventions: interventionsRes.data ?? [],
+        invoices: invoicesRes.data ?? [],
+        movements: movementsRes.data ?? [],
+        products: productsRes.data ?? [],
+      };
+    },
+  });
+
+  const result = useMemo(() => {
+    const members = membersQuery.data ?? [];
+    const raw = rawQuery.data;
+    if (!raw) return { technicians: [] as TechnicianStatsEntry[], nonAttribue: { caHt: 0 } };
+
+    const priceMap = new Map<string, number>();
+    for (const p of raw.products) priceMap.set(p.id, Number(p.prix_achat_ht ?? 0));
+
+    const entries = new Map<string, TechnicianStatsEntry>();
+    for (const m of members) {
+      entries.set(m.user_id, {
+        technicien_id: m.user_id,
+        display_name: m.display_name,
+        nbInterventions: 0,
+        caHt: 0,
+        consoValue: 0,
+        parNuisible: {},
+      });
+    }
+
+    for (const i of raw.interventions as any[]) {
+      const e = i.technicien_id ? entries.get(i.technicien_id) : undefined;
+      if (!e) continue;
+      e.nbInterventions += 1;
+      const nuisible = i.type_nuisible || "Non renseigné";
+      e.parNuisible[nuisible] = (e.parNuisible[nuisible] ?? 0) + 1;
+    }
+
+    let nonAttribueCa = 0;
+    for (const inv of raw.invoices as any[]) {
+      const tid = inv.intervention?.technicien_id ?? null;
+      const ht = Number(inv.total_ht ?? 0);
+      const e = tid ? entries.get(tid) : undefined;
+      if (e) e.caHt += ht;
+      else nonAttribueCa += ht;
+    }
+
+    for (const mv of raw.movements as any[]) {
+      const e = mv.technicien_id ? entries.get(mv.technicien_id) : undefined;
+      if (!e) continue;
+      const price = priceMap.get(mv.product_id) ?? 0;
+      e.consoValue += Number(mv.quantite ?? 0) * price;
+    }
+
+    return {
+      technicians: [...entries.values()].sort((a, b) => b.caHt - a.caHt),
+      nonAttribue: { caHt: nonAttribueCa },
+    };
+  }, [membersQuery.data, rawQuery.data]);
+
+  return {
+    isLoading: membersQuery.isLoading || rawQuery.isLoading,
+    technicians: result.technicians,
+    nonAttribue: result.nonAttribue,
+  };
 }
 
 export function useMonthlyStats() {
