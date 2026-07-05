@@ -408,6 +408,44 @@ export type Database = {
         }
         Relationships: []
       }
+      stock_levels: {
+        Row: {
+          id: string
+          product_id: string
+          technicien_id: string | null
+          quantite: number
+          user_id: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          product_id: string
+          technicien_id?: string | null
+          quantite?: number
+          user_id: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          product_id?: string
+          technicien_id?: string | null
+          quantite?: number
+          user_id?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_levels_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "stock_products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       stock_products: {
         Row: {
           created_at: string

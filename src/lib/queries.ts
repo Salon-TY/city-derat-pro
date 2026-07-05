@@ -245,6 +245,65 @@ export function useStockProducts() {
   });
 }
 
+export type StockLevel = {
+  id: string;
+  product_id: string;
+  technicien_id: string | null;
+  quantite: number;
+  user_id: string;
+  created_at: string;
+  updated_at: string;
+  product?: { nom: string; unite: string; seuil_alerte: number } | null;
+};
+
+function mapStockLevel(l: any): StockLevel {
+  return { ...l, quantite: Number(l.quantite) };
+}
+
+export function useStockLevels() {
+  return useQuery({
+    queryKey: ["stock_levels"],
+    queryFn: async (): Promise<StockLevel[]> => {
+      const { data, error } = await db
+        .from("stock_levels")
+        .select("*, product:stock_products(nom, unite, seuil_alerte)")
+        .order("created_at");
+      if (error) throw error;
+      return (data ?? []).map(mapStockLevel);
+    },
+  });
+}
+
+export function useMyVanStock() {
+  return useQuery({
+    queryKey: ["my_van_stock"],
+    queryFn: async (): Promise<StockLevel[]> => {
+      const { data: { user } } = await db.auth.getUser();
+      if (!user) return [];
+      const { data, error } = await db
+        .from("stock_levels")
+        .select("*, product:stock_products(nom, unite, seuil_alerte)")
+        .eq("technicien_id", user.id)
+        .order("created_at");
+      if (error) throw error;
+      return (data ?? []).map(mapStockLevel);
+    },
+  });
+}
+
+export function getGarageLevel(levels: StockLevel[] | undefined, productId: string): StockLevel | undefined {
+  return levels?.find((l) => l.product_id === productId && l.technicien_id === null);
+}
+
+export function getVanLevel(
+  levels: StockLevel[] | undefined,
+  productId: string,
+  technicienId: string | null | undefined
+): StockLevel | undefined {
+  if (!technicienId) return undefined;
+  return levels?.find((l) => l.product_id === productId && l.technicien_id === technicienId);
+}
+
 export type ProductStat = {
   id: string;
   nom: string;
