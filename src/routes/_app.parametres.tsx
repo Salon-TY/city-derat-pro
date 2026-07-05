@@ -236,13 +236,15 @@ function ParametresPage() {
   async function handleExport() {
     setExporting(true);
     try {
-      const [clients, interventions, invoices, invoiceLines, contracts, stock] = await Promise.all([
+      const [clients, interventions, invoices, invoiceLines, contracts, stock, stockLevels, teamMembers] = await Promise.all([
         db.from("clients").select("*").order("raison_sociale"),
         db.from("interventions").select("*, client:clients(raison_sociale)").order("date", { ascending: false }),
         db.from("invoices").select("*, client:clients(raison_sociale)").order("numero", { ascending: false }),
         db.from("invoice_lines").select("*").order("ordre"),
         db.from("contracts").select("*, client:clients(raison_sociale)").order("date_fin"),
         db.from("stock_products").select("*").order("nom"),
+        db.from("stock_levels").select("*, product:stock_products(nom, unite)"),
+        db.from("team_members").select("user_id, display_name, username"),
       ]);
 
       const wb = XLSX.utils.book_new();
@@ -321,12 +323,25 @@ function ParametresPage() {
         (stock.data ?? []).map((p: any) => ({
           "Produit": p.nom,
           "Unité": p.unite,
-          "Quantité": p.quantite,
           "Seuil alerte": p.seuil_alerte,
           "Prix achat HT": p.prix_achat_ht,
         }))
       );
-      XLSX.utils.book_append_sheet(wb, sheetStock, "Stock");
+      XLSX.utils.book_append_sheet(wb, sheetStock, "Stock (catalogue)");
+
+      const memberNameById = new Map<string, string>();
+      for (const m of teamMembers.data ?? []) {
+        memberNameById.set(m.user_id, m.display_name || m.username || "Sans nom");
+      }
+      const sheetStockLevels = XLSX.utils.json_to_sheet(
+        (stockLevels.data ?? []).map((l: any) => ({
+          "Produit": l.product?.nom ?? "",
+          "Emplacement": l.technicien_id ? memberNameById.get(l.technicien_id) ?? "Camion" : "Garage",
+          "Quantité": l.quantite,
+          "Unité": l.product?.unite ?? "",
+        }))
+      );
+      XLSX.utils.book_append_sheet(wb, sheetStockLevels, "Stock (niveaux)");
 
       const date = new Date().toISOString().slice(0, 10);
       XLSX.writeFile(wb, `city-derat-sauvegarde-${date}.xlsx`);
