@@ -8,7 +8,7 @@ import {
   TYPES_INTERVENTION,
   STATUTS_INTERVENTION,
 } from "@/lib/schemas";
-import { useClients, useStockProducts, useContracts, useAssignableMembers } from "@/lib/queries";
+import { useClients, useStockProducts, useContracts, useAssignableMembers, useStockLevels, getGarageLevel, getVanLevel } from "@/lib/queries";
 import { db } from "@/lib/db";
 
 export type StockUsageItem = {
@@ -70,6 +70,7 @@ export function InterventionForm({
   const { data: stockProducts = [] } = useStockProducts();
   const { data: contracts = [] } = useContracts();
   const { data: assignableMembers = [] } = useAssignableMembers();
+  const { data: stockLevels = [] } = useStockLevels();
   const qc = useQueryClient();
   const [showNewClient, setShowNewClient] = useState(false);
   const [newClientName, setNewClientName] = useState("");
@@ -85,9 +86,6 @@ export function InterventionForm({
   const [pickedQty, setPickedQty] = useState<number>(1);
   const pickedProduct = stockProducts.find((p) => p.id === pickedProductId);
   const isVolume = pickedProduct?.type_gestion === "volume";
-  const stockAfter = pickedProduct
-    ? Math.max(0, pickedProduct.quantite - pickedQty)
-    : null;
 
   // Mode B — free product
   const [showFreeForm, setShowFreeForm] = useState(false);
@@ -151,7 +149,21 @@ export function InterventionForm({
 
   const clientId = form.watch("client_id");
   const contractId = form.watch("contract_id");
+  const technicienId = form.watch("technicien_id");
   const clientContracts = contracts.filter((c) => c.client_id === clientId && c.statut === "actif");
+
+  // Quantité disponible pour le picker de stock : camion du technicien assigné,
+  // sinon le garage (avec indication à l'utilisateur).
+  function availableQty(productId: string): number {
+    const level = technicienId
+      ? getVanLevel(stockLevels, productId, technicienId)
+      : getGarageLevel(stockLevels, productId);
+    return level?.quantite ?? 0;
+  }
+  const pickedAvailableQty = pickedProductId ? availableQty(pickedProductId) : null;
+  const stockAfter = pickedProduct
+    ? Math.max(0, (pickedAvailableQty ?? 0) - pickedQty)
+    : null;
 
   useEffect(() => {
     if (!clientId) return;
@@ -243,7 +255,7 @@ export function InterventionForm({
         nom: product.nom,
         quantite: qty,
         unite: product.unite,
-        stock_actuel: product.quantite,
+        stock_actuel: availableQty(product.id),
       }];
     });
     setPickedProductId("");
@@ -531,6 +543,11 @@ export function InterventionForm({
             {stockProducts.length > 0 && (
               <div className="space-y-1.5">
                 <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">Depuis le stock</div>
+                {!technicienId && (
+                  <p className="text-[10px] text-muted-foreground italic">
+                    Assignez un technicien pour décompter son camion — à défaut, le garage sera décompté.
+                  </p>
+                )}
                 <Select
                   value={pickedProductId}
                   onValueChange={(v) => {
@@ -545,7 +562,7 @@ export function InterventionForm({
                   <SelectContent>
                     {stockProducts.map((p) => (
                       <SelectItem key={p.id} value={p.id}>
-                        {p.nom} — {p.quantite} {p.unite} dispo
+                        {p.nom} — {availableQty(p.id)} {p.unite} dispo
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -570,12 +587,12 @@ export function InterventionForm({
                         <Plus className="h-3.5 w-3.5" />
                       </Button>
                     </div>
-                    {stockAfter !== null && pickedProduct && (
-                      <p className={`text-[10px] ${pickedQty > pickedProduct.quantite ? "text-destructive font-semibold" : "text-muted-foreground"}`}>
-                        Stock actuel : {pickedProduct.quantite} {pickedProduct.unite}
+                    {stockAfter !== null && pickedProduct && pickedAvailableQty !== null && (
+                      <p className={`text-[10px] ${pickedQty > pickedAvailableQty ? "text-destructive font-semibold" : "text-muted-foreground"}`}>
+                        Stock actuel ({technicienId ? "camion" : "garage"}) : {pickedAvailableQty} {pickedProduct.unite}
                         {" → sera : "}
                         <span className="font-medium">{stockAfter} {pickedProduct.unite}</span>
-                        {pickedQty > pickedProduct.quantite && " ⚠️ insuffisant"}
+                        {pickedQty > pickedAvailableQty && " ⚠️ insuffisant"}
                       </p>
                     )}
                   </div>

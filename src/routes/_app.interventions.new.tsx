@@ -17,6 +17,15 @@ export const Route = createFileRoute("/_app/interventions/new")({
   component: NewIntervention,
 });
 
+// Récupère le niveau de stock d'un produit à l'emplacement voulu (camion du
+// technicien si assigné, sinon garage). Retourne null si aucune ligne n'existe.
+async function fetchStockLevel(productId: string, technicienId: string | null) {
+  let q = db.from("stock_levels").select("id, quantite").eq("product_id", productId);
+  q = technicienId ? q.eq("technicien_id", technicienId) : q.is("technicien_id", null);
+  const { data } = await q.maybeSingle();
+  return data as { id: string; quantite: number } | null;
+}
+
 function NewIntervention() {
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -25,13 +34,15 @@ function NewIntervention() {
   async function handleSubmit(values: IFType, stockItems: StockUsageItem[], photoFiles: PhotoFile[]) {
     const { data: userRes } = await supabase.auth.getUser();
     const userId = userRes.user?.id ?? "";
+    const technicienId = values.technicien_id || null;
 
-    // Vérification stock avant enregistrement
+    // Vérification stock avant enregistrement (camion du technicien assigné, sinon garage)
     const warnings: string[] = [];
     for (const item of stockItems) {
-      const { data: current } = await db.from("stock_products").select("quantite, nom, unite").eq("id", item.product_id).maybeSingle();
-      if (current && Number(current.quantite) < item.quantite) {
-        warnings.push(`Stock insuffisant pour ${current.nom} : il reste seulement ${current.quantite} ${current.unite}`);
+      const level = await fetchStockLevel(item.product_id, technicienId);
+      const disponible = Number(level?.quantite ?? 0);
+      if (disponible < item.quantite) {
+        warnings.push(`Stock insuffisant pour ${item.nom} : il reste seulement ${disponible} ${item.unite} ${technicienId ? "sur le camion" : "au garage"}`);
       }
     }
     if (warnings.length > 0) {
@@ -70,16 +81,21 @@ function NewIntervention() {
       }
     }
 
-    // Déduction automatique du stock
+    // Déduction automatique du stock — camion du technicien assigné, sinon garage.
+    // Clampée à 0 ; crée la ligne de niveau si elle n'existe pas encore.
     for (const item of stockItems) {
-      const { data: current } = await db.from("stock_products").select("quantite").eq("id", item.product_id).maybeSingle();
-      if (current) {
-        const next = Math.max(0, Number(current.quantite) - item.quantite);
-        await db.from("stock_products").update({ quantite: next }).eq("id", item.product_id);
+      const level = await fetchStockLevel(item.product_id, technicienId);
+      const current = Number(level?.quantite ?? 0);
+      const next = Math.max(0, current - item.quantite);
+      if (level) {
+        await db.from("stock_levels").update({ quantite: next }).eq("id", level.id);
+      } else {
+        await db.from("stock_levels").insert({ product_id: item.product_id, technicien_id: technicienId, quantite: next, user_id: userId });
       }
     }
     if (stockItems.length > 0) {
-      qc.invalidateQueries({ queryKey: ["stock_products"] });
+      qc.invalidateQueries({ queryKey: ["stock_levels"] });
+      qc.invalidateQueries({ queryKey: ["my_van_stock"] });
       qc.invalidateQueries({ queryKey: ["product_stats"] });
     }
 

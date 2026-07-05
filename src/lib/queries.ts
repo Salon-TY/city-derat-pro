@@ -567,14 +567,15 @@ export function useDashboardStats() {
       const prevMonthStart = localDate(new Date(_now.getFullYear(), _now.getMonth() - 1, 1));
       const prevMonthEnd = localDate(new Date(_now.getFullYear(), _now.getMonth(), 0));
 
-      const [todayRes, todayInterventions, monthRes, prevMonthRes, unpaidRes, contractsRes, stockRes] = await Promise.all([
+      const [todayRes, todayInterventions, monthRes, prevMonthRes, unpaidRes, contractsRes, stockProductsRes, stockLevelsRes] = await Promise.all([
         db.from("interventions").select("*", { count: "exact", head: true }).eq("date", today),
         db.from("interventions").select("*, client:clients(raison_sociale, telephone)").eq("date", today).order("created_at"),
         db.from("invoices").select("total_ttc, date_facture, statut").gte("date_facture", monthStart),
         db.from("invoices").select("total_ttc, statut").gte("date_facture", prevMonthStart).lte("date_facture", prevMonthEnd),
         db.from("invoices").select("id, total_ttc, statut, echeance, client:clients(raison_sociale)").in("statut", ["envoyee", "retard"]),
         db.from("contracts").select("*, client:clients(raison_sociale)").eq("statut", "actif"),
-        db.from("stock_products").select("*"),
+        db.from("stock_products").select("id, nom, unite, seuil_alerte"),
+        db.from("stock_levels").select("product_id, quantite"),
       ]);
 
       const ca = (monthRes.data ?? [])
@@ -604,7 +605,14 @@ export function useDashboardStats() {
         .filter((c: any) => c.date_fin <= in30Days && c.date_fin >= today)
         .map((c: any) => ({ ...c, urgent: c.date_fin <= in7Days }));
 
-      const stockAlerts = (stockRes.data ?? []).filter((p: any) => Number(p.quantite) <= Number(p.seuil_alerte));
+      // Alerte = stock total (garage + tous les camions) au seuil ou en dessous.
+      const levelTotals = new Map<string, number>();
+      for (const l of stockLevelsRes.data ?? []) {
+        levelTotals.set(l.product_id, (levelTotals.get(l.product_id) ?? 0) + Number(l.quantite ?? 0));
+      }
+      const stockAlerts = (stockProductsRes.data ?? [])
+        .map((p: any) => ({ ...p, quantite: levelTotals.get(p.id) ?? 0 }))
+        .filter((p: any) => p.quantite <= Number(p.seuil_alerte));
 
       return {
         interventionsToday: todayRes.count ?? 0,
