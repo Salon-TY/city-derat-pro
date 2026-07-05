@@ -10,22 +10,23 @@ import { toast } from "sonner";
 import { useState, useEffect, useRef } from "react";
 import { db } from "@/lib/db";
 import { formatEUR, formatDateFR, TYPES_INTERVENTION } from "@/lib/schemas";
-import { useClients, useSettings, useCurrentRole } from "@/lib/queries";
+import { useClients, useSettings, useMyAccess } from "@/lib/queries";
+import type { PermissionKey } from "@/lib/permissions";
 
-const mainNavItems = [
-  { to: "/", label: "Accueil", icon: LayoutDashboard, exact: true },
-  { to: "/clients", label: "Clients", icon: Users },
-  { to: "/interventions", label: "Terrain", icon: ClipboardList },
-  { to: "/factures", label: "Factures", icon: FileText },
+const mainNavItems: { to: string; label: string; icon: typeof LayoutDashboard; exact?: boolean; perm?: PermissionKey }[] = [
+  { to: "/", label: "Accueil", icon: LayoutDashboard, exact: true, perm: "accueil" },
+  { to: "/clients", label: "Clients", icon: Users, perm: "clients" },
+  { to: "/interventions", label: "Terrain", icon: ClipboardList }, // toujours visible
+  { to: "/factures", label: "Factures", icon: FileText, perm: "factures" },
 ];
 
-const moreNavItems = [
-  { to: "/devis", label: "Devis", icon: FileCheck },
-  { to: "/tresorerie", label: "Trésorerie", icon: TrendingUp },
-  { to: "/stock", label: "Stock", icon: Package },
-  { to: "/contrats", label: "Contrats", icon: FileSignature },
-  { to: "/stats", label: "Statistiques", icon: BarChart2 },
-  { to: "/parametres", label: "Paramètres", icon: Settings },
+const moreNavItems: { to: string; label: string; icon: typeof LayoutDashboard; perm?: PermissionKey }[] = [
+  { to: "/devis", label: "Devis", icon: FileCheck, perm: "devis" },
+  { to: "/tresorerie", label: "Trésorerie", icon: TrendingUp, perm: "tresorerie" },
+  { to: "/stock", label: "Stock", icon: Package, perm: "stock" },
+  { to: "/contrats", label: "Contrats", icon: FileSignature, perm: "contrats" },
+  { to: "/stats", label: "Statistiques", icon: BarChart2, perm: "stats" },
+  { to: "/parametres", label: "Paramètres", icon: Settings, perm: "parametres" },
 ];
 
 type SearchResult = {
@@ -329,10 +330,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [searchOpen, setSearchOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const { data: settings } = useSettings();
-  const { data: role } = useCurrentRole();
-  const moreItems = role === "owner"
-    ? [...moreNavItems, { to: "/equipe", label: "Équipe", icon: UserCog }]
-    : moreNavItems;
+  const { can, loading: accessLoading } = useMyAccess();
+
+  // Tant que l'accès n'est pas résolu, on masque les onglets à permission
+  // (Terrain reste toujours visible) pour éviter un flash "tout est affiché".
+  const mainItems = mainNavItems.filter((item) => !item.perm || (!accessLoading && can(item.perm)));
+  const filteredMore = moreNavItems.filter((item) => !item.perm || (!accessLoading && can(item.perm)));
+  const moreItems = !accessLoading && can("equipe")
+    ? [...filteredMore, { to: "/equipe", label: "Équipe", icon: UserCog }]
+    : filteredMore;
 
   async function handleSignOut() {
     await qc.cancelQueries();
@@ -462,8 +468,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           boxShadow: "0 -4px 24px rgba(0,0,0,0.08), 0 -1px 4px rgba(0,0,0,0.04)",
         }}
       >
-        <div className="mx-auto grid max-w-3xl grid-cols-5">
-          {mainNavItems.map((item) => {
+        <div
+          className="mx-auto grid max-w-3xl"
+          style={{ gridTemplateColumns: `repeat(${mainItems.length + 1}, minmax(0, 1fr))` }}
+        >
+          {mainItems.map((item) => {
             const Icon = item.icon;
             const active = item.exact
               ? location.pathname === item.to
