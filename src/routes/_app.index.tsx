@@ -305,7 +305,7 @@ function Dashboard() {
         </Link>
       )}
 
-      {/* Alertes stock */}
+      {/* Alertes stock (par emplacement : garage / camion) */}
       {!isLoading && (stats?.stockAlerts?.length ?? 0) > 0 && (
         <Link to="/stock" className="block">
           <Card className="border-red-300 bg-red-50 dark:bg-red-950/20 hover:border-red-400 transition-colors">
@@ -313,12 +313,12 @@ function Dashboard() {
               <Package className="h-4 w-4 text-red-500 mt-0.5 shrink-0" />
               <div className="text-sm">
                 <span className="font-semibold text-red-700 dark:text-red-400">
-                  {stats!.stockAlerts.length} produit{stats!.stockAlerts.length > 1 ? "s" : ""} en stock bas
+                  {stats!.stockAlerts.length} emplacement{stats!.stockAlerts.length > 1 ? "s" : ""} en stock bas
                 </span>
                 <ul className="mt-1 space-y-0.5">
-                  {stats!.stockAlerts.map((p: any) => (
-                    <li key={p.id} className="text-xs text-red-600 dark:text-red-300">
-                      {p.nom} — {p.quantite} {p.unite} restant{p.quantite > 1 ? "s" : ""}
+                  {stats!.stockAlerts.map((a: any) => (
+                    <li key={`${a.product_id}-${a.technicien_id ?? "garage"}`} className="text-xs text-red-600 dark:text-red-300">
+                      {a.label}
                     </li>
                   ))}
                 </ul>
