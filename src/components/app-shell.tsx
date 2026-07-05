@@ -2,7 +2,7 @@ import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import {
   LayoutDashboard, Users, ClipboardList, FileText, FileSignature,
   Settings, LogOut, Bug, Plus, Package, Search, X, TrendingUp, FileCheck,
-  MoreHorizontal, BarChart2
+  MoreHorizontal, BarChart2, UserCog
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
@@ -10,7 +10,7 @@ import { toast } from "sonner";
 import { useState, useEffect, useRef } from "react";
 import { db } from "@/lib/db";
 import { formatEUR, formatDateFR, TYPES_INTERVENTION } from "@/lib/schemas";
-import { useClients, useSettings } from "@/lib/queries";
+import { useClients, useSettings, useCurrentRole } from "@/lib/queries";
 
 const mainNavItems = [
   { to: "/", label: "Accueil", icon: LayoutDashboard, exact: true },
@@ -329,6 +329,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [searchOpen, setSearchOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const { data: settings } = useSettings();
+  const { data: role } = useCurrentRole();
+  const moreItems = role === "owner"
+    ? [...moreNavItems, { to: "/equipe", label: "Équipe", icon: UserCog }]
+    : moreNavItems;
 
   async function handleSignOut() {
     await qc.cancelQueries();
@@ -426,7 +430,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </button>
             </div>
             <div className="grid grid-cols-3 gap-0 p-2">
-              {moreNavItems.map((item) => {
+              {moreItems.map((item) => {
                 const Icon = item.icon;
                 const active = location.pathname === item.to || location.pathname.startsWith(item.to + "/");
                 return (
@@ -481,7 +485,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           })}
           {/* Bouton Plus */}
           {(() => {
-            const moreActive = moreNavItems.some(
+            const moreActive = moreItems.some(
               (item) => location.pathname === item.to || location.pathname.startsWith(item.to + "/")
             );
             return (
