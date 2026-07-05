@@ -1,15 +1,17 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { db } from "@/lib/db";
+import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useInterventions, type Intervention } from "@/lib/queries";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useInterventions, useCurrentRole, useAssignableMembers, type Intervention } from "@/lib/queries";
 import { STATUTS_INTERVENTION, formatDateFR } from "@/lib/schemas";
 import {
   Plus, Search, Filter, X, List as ListIcon, Sun, CalendarDays,
-  ChevronLeft, ChevronRight, MapPin, Phone
+  ChevronLeft, ChevronRight, MapPin, Phone, UserRound
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -95,14 +97,31 @@ function InterventionsPage() {
   const [periodFilter, setPeriodFilter] = useState("all");
   const [sortDir, setSortDir] = useState<"desc" | "asc">("desc");
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [technicienFilter, setTechnicienFilter] = useState("all");
 
   const { data: allInterventions = [], isLoading } = useInterventions();
+  const { data: role } = useCurrentRole();
+  const { data: assignableMembers = [] } = useAssignableMembers();
+
+  // Un employé-technicien arrive par défaut sur "Mes interventions" ;
+  // le patron/bureau voit "Tous". Ne s'applique qu'une seule fois.
+  const defaultedRef = useRef(false);
+  useEffect(() => {
+    if (defaultedRef.current || !role) return;
+    if (role !== "owner") {
+      supabase.auth.getUser().then(({ data }) => {
+        if (data.user) setTechnicienFilter(data.user.id);
+      });
+    }
+    defaultedRef.current = true;
+  }, [role]);
 
   const activeFiltersCount = [
     q.trim() ? 1 : 0,
     statutFilter !== "all" ? 1 : 0,
     typeFilter !== "all" ? 1 : 0,
     periodFilter !== "all" ? 1 : 0,
+    technicienFilter !== "all" ? 1 : 0,
   ].reduce((a, b) => a + b, 0);
 
   const filteredList = useMemo(() => {
@@ -117,6 +136,7 @@ function InterventionsPage() {
     }
     if (statutFilter !== "all") list = list.filter((i) => i.statut === statutFilter);
     if (typeFilter !== "all") list = list.filter((i) => i.type_nuisible === typeFilter);
+    if (technicienFilter !== "all") list = list.filter((i) => i.technicien_id === technicienFilter);
     if (periodFilter !== "all") {
       const now = new Date();
       const todayStr = toISO(now);
@@ -132,7 +152,7 @@ function InterventionsPage() {
     }
     list.sort((a, b) => (a.date < b.date ? 1 : -1) * (sortDir === "desc" ? 1 : -1));
     return list;
-  }, [allInterventions, q, statutFilter, typeFilter, periodFilter, sortDir]);
+  }, [allInterventions, q, statutFilter, typeFilter, periodFilter, sortDir, technicienFilter]);
 
   const nuisibleTypes = useMemo(() => {
     const s = new Set(allInterventions.map((i) => i.type_nuisible).filter(Boolean));
@@ -148,6 +168,9 @@ function InterventionsPage() {
     view !== "list" ? rangeStart : "9999-01-01",
     view !== "list" ? rangeEnd : "9999-01-01"
   );
+  const filteredRangeInvs = useMemo(() => (
+    technicienFilter === "all" ? rangeInvs : rangeInvs.filter((i) => i.technicien_id === technicienFilter)
+  ), [rangeInvs, technicienFilter]);
 
   function prevPeriod() { setSelectedDate((d) => addDays(d, view === "day" ? -1 : -7)); }
   function nextPeriod() { setSelectedDate((d) => addDays(d, view === "day" ? 1 : 7)); }
@@ -160,7 +183,7 @@ function InterventionsPage() {
     : `Semaine du ${wStart.toLocaleDateString("fr-FR", { day: "numeric", month: "short" })} au ${wEnd.toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}`;
 
   function resetFilters() {
-    setQ(""); setStatutFilter("all"); setTypeFilter("all"); setPeriodFilter("all"); setSortDir("desc");
+    setQ(""); setStatutFilter("all"); setTypeFilter("all"); setPeriodFilter("all"); setSortDir("desc"); setTechnicienFilter("all");
   }
 
   return (
@@ -190,6 +213,22 @@ function InterventionsPage() {
           </button>
         ))}
       </div>
+
+      {/* Technicien — s'applique aux 3 vues (Liste/Jour/Semaine) */}
+      {assignableMembers.length > 1 && (
+        <div className="flex items-center gap-2">
+          <UserRound className="h-4 w-4 shrink-0 text-muted-foreground" />
+          <Select value={technicienFilter} onValueChange={setTechnicienFilter}>
+            <SelectTrigger className="h-9 text-sm flex-1"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tous les techniciens</SelectItem>
+              {assignableMembers.map((m) => (
+                <SelectItem key={m.user_id} value={m.user_id}>{m.display_name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
 
       {view === "list" && (
         <>
@@ -327,10 +366,10 @@ function InterventionsPage() {
           </div>
 
           {view === "day" && (
-            <DayView date={selectedDate} interventions={rangeInvs} isLoading={rangeLoading} today={today} />
+            <DayView date={selectedDate} interventions={filteredRangeInvs} isLoading={rangeLoading} today={today} />
           )}
           {view === "week" && (
-            <WeekView wStart={wStart} interventions={rangeInvs} selectedDate={selectedDate}
+            <WeekView wStart={wStart} interventions={filteredRangeInvs} selectedDate={selectedDate}
               onSelectDay={(d) => { setSelectedDate(d); setView("day"); }} today={today} />
           )}
         </>
