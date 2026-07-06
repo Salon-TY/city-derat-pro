@@ -18,12 +18,12 @@ const mainNavItems: { to: string; label: string; icon: typeof LayoutDashboard; e
   { to: "/clients", label: "Clients", icon: Users, perm: "clients" },
   { to: "/interventions", label: "Terrain", icon: ClipboardList }, // toujours visible
   { to: "/factures", label: "Factures", icon: FileText, perm: "factures" },
+  { to: "/stock", label: "Stock", icon: Package, perm: "stock" },
 ];
 
 const moreNavItems: { to: string; label: string; icon: typeof LayoutDashboard; perm?: PermissionKey }[] = [
   { to: "/devis", label: "Devis", icon: FileCheck, perm: "devis" },
   { to: "/tresorerie", label: "Trésorerie", icon: TrendingUp, perm: "tresorerie" },
-  { to: "/stock", label: "Stock", icon: Package, perm: "stock" },
   { to: "/contrats", label: "Contrats", icon: FileSignature, perm: "contrats" },
   { to: "/stats", label: "Statistiques", icon: BarChart2, perm: "stats" },
   { to: "/parametres", label: "Paramètres", icon: Settings, perm: "parametres" },
@@ -339,6 +339,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const moreItems = !accessLoading && can("equipe")
     ? [...filteredMore, { to: "/equipe", label: "Équipe", icon: UserCog }]
     : filteredMore;
+  const hasMore = moreItems.length > 0;
 
   async function handleSignOut() {
     await qc.cancelQueries();
@@ -418,8 +419,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </button>
       </div>
 
-      {/* Menu "Plus" — drawer depuis le bas */}
-      {moreOpen && (
+      {/* Menu "Plus" — drawer depuis le bas (rendu uniquement s'il reste des onglets en trop) */}
+      {hasMore && moreOpen && (
         <div
           className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
           onClick={() => setMoreOpen(false)}
@@ -460,7 +461,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       )}
 
-      {/* Bottom navigation — 4 items + Plus */}
+      {/* Bottom navigation — onglets principaux + Plus (si des onglets débordent) */}
       <nav
         className="fixed bottom-0 inset-x-0 z-30 bg-card border-t border-border"
         style={{
@@ -470,7 +471,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       >
         <div
           className="mx-auto grid max-w-3xl"
-          style={{ gridTemplateColumns: `repeat(${mainItems.length + 1}, minmax(0, 1fr))` }}
+          style={{ gridTemplateColumns: `repeat(${mainItems.length + (hasMore ? 1 : 0)}, minmax(0, 1fr))` }}
         >
           {mainItems.map((item) => {
             const Icon = item.icon;
@@ -492,8 +493,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </Link>
             );
           })}
-          {/* Bouton Plus */}
-          {(() => {
+          {/* Bouton Plus — absent quand aucun onglet ne déborde */}
+          {hasMore && (() => {
             const moreActive = moreItems.some(
               (item) => location.pathname === item.to || location.pathname.startsWith(item.to + "/")
             );
