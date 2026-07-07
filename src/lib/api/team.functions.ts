@@ -23,6 +23,7 @@ export const createEmployee = createServerFn({ method: "POST" })
     displayName: z.string().trim().min(1, "Nom requis"),
     username: z.string().trim().min(1, "Identifiant requis"),
     password: z.string().min(8, "8 caractères minimum"),
+    poste: z.enum(["bureau", "technicien"]).default("technicien"),
   }))
   .handler(async ({ data, context }) => {
     await requireOwner(context);
@@ -61,6 +62,7 @@ export const createEmployee = createServerFn({ method: "POST" })
       display_name: data.displayName,
       role: "employe",
       active: true,
+      poste: data.poste,
     });
     if (insertErr) {
       await admin.auth.admin.deleteUser(created.user.id).catch(() => {});

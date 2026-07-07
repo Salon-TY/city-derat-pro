@@ -539,6 +539,7 @@ export type TeamMember = {
   role: string;
   active: boolean;
   permissions?: Record<string, boolean> | null;
+  poste: "bureau" | "technicien";
   created_at: string;
 };
 
@@ -569,20 +570,51 @@ export type AssignableMember = {
   display_name: string;
   role: string;
   username: string | null;
+  poste: "bureau" | "technicien";
 };
 
+// Uniquement les personnes de terrain : le propriétaire (toujours assignable)
+// + les employés au poste "technicien". Le personnel de bureau est exclu.
 export function useAssignableMembers() {
   return useQuery({
     queryKey: ["assignable_members"],
     queryFn: async (): Promise<AssignableMember[]> => {
-      const { data, error } = await db.from("team_members").select("user_id, display_name, role, username").eq("active", true).order("display_name");
+      const { data, error } = await db
+        .from("team_members")
+        .select("user_id, display_name, role, username, poste")
+        .eq("active", true)
+        .or("role.eq.owner,poste.eq.technicien")
+        .order("display_name");
       if (error) throw error;
       return (data ?? []).map((m: any) => ({
         user_id: m.user_id,
         display_name: m.display_name || m.username || "Sans nom",
         role: m.role,
         username: m.username,
+        poste: m.poste,
       }));
+    },
+  });
+}
+
+// Charge de travail approximative par technicien : interventions planifiées
+// (pas encore réalisées/annulées) qui lui sont assignées.
+export function useTechnicianWorkload() {
+  return useQuery({
+    queryKey: ["technician_workload"],
+    queryFn: async (): Promise<Record<string, number>> => {
+      const { data, error } = await db
+        .from("interventions")
+        .select("technicien_id")
+        .eq("statut", "planifiee")
+        .not("technicien_id", "is", null);
+      if (error) throw error;
+      const counts: Record<string, number> = {};
+      for (const i of data ?? []) {
+        if (!i.technicien_id) continue;
+        counts[i.technicien_id] = (counts[i.technicien_id] ?? 0) + 1;
+      }
+      return counts;
     },
   });
 }

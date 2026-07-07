@@ -547,6 +547,7 @@ export type Database = {
           role: string
           active: boolean
           permissions: Json
+          poste: string
           created_at: string
         }
         Insert: {
@@ -559,6 +560,7 @@ export type Database = {
           role?: string
           active?: boolean
           permissions?: Json
+          poste?: string
           created_at?: string
         }
         Update: {
@@ -571,6 +573,7 @@ export type Database = {
           role?: string
           active?: boolean
           permissions?: Json
+          poste?: string
           created_at?: string
         }
         Relationships: []
