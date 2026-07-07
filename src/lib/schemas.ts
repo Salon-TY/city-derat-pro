@@ -18,9 +18,10 @@ export const TYPES_INTERVENTION = [
 ] as const;
 
 export const STATUTS_INTERVENTION = [
-  { value: "planifiee", label: "Planifiée" },
-  { value: "realisee", label: "Réalisée" },
-  { value: "rapport_transmis", label: "Rapport transmis" },
+  { value: "planifiee", label: "À faire" },
+  { value: "en_cours", label: "En cours" },
+  { value: "realisee", label: "Terminée" },
+  { value: "rapport_transmis", label: "Vérifiée" },
   { value: "annulee", label: "Annulée" },
 ] as const;
 

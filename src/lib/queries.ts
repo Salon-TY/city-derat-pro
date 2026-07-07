@@ -554,6 +554,21 @@ export function useCurrentRole() {
   });
 }
 
+// Poste (bureau/technicien) de l'utilisateur courant — utilisé pour distinguer
+// un employé de terrain (workflow technicien) d'un employé de bureau.
+export function useMyPoste() {
+  return useQuery({
+    queryKey: ["my_poste"],
+    queryFn: async (): Promise<"bureau" | "technicien" | null> => {
+      const { data: { user } } = await db.auth.getUser();
+      if (!user) return null;
+      const { data, error } = await db.from("team_members").select("poste").eq("user_id", user.id).maybeSingle();
+      if (error) throw error;
+      return (data?.poste as "bureau" | "technicien" | undefined) ?? null;
+    },
+  });
+}
+
 export function useTeamMembers() {
   return useQuery({
     queryKey: ["team_members"],
@@ -685,7 +700,7 @@ export function useDashboardStats() {
       const prevMonthStart = localDate(new Date(_now.getFullYear(), _now.getMonth() - 1, 1));
       const prevMonthEnd = localDate(new Date(_now.getFullYear(), _now.getMonth(), 0));
 
-      const [todayRes, todayInterventions, monthRes, prevMonthRes, unpaidRes, contractsRes, stockLevelsRes, teamRes, roleRes, userRes] = await Promise.all([
+      const [todayRes, todayInterventions, monthRes, prevMonthRes, unpaidRes, contractsRes, stockLevelsRes, teamRes, roleRes, userRes, toVerifyRes] = await Promise.all([
         db.from("interventions").select("*", { count: "exact", head: true }).eq("date", today),
         db.from("interventions").select("*, client:clients(raison_sociale, telephone)").eq("date", today).order("created_at"),
         db.from("invoices").select("total_ttc, date_facture, statut").gte("date_facture", monthStart),
@@ -696,6 +711,7 @@ export function useDashboardStats() {
         db.from("team_members").select("user_id, display_name, username"),
         db.rpc("current_user_role"),
         db.auth.getUser(),
+        db.from("interventions").select("*", { count: "exact", head: true }).eq("statut", "realisee"),
       ]);
 
       const ca = (monthRes.data ?? [])
@@ -768,6 +784,7 @@ export function useDashboardStats() {
         expiringContracts,
         stockAlerts,
         lowStockCount: stockAlerts.length,
+        toVerifyCount: toVerifyRes.count ?? 0,
       };
     },
   });
@@ -947,8 +964,8 @@ export function useMonthlyStats() {
         db.from("invoices").select("total_ttc, statut").gte("date_facture", monthStart),
         db.from("invoices").select("total_ttc, statut").gte("date_facture", prevMonthStart).lte("date_facture", prevMonthEnd),
         db.from("invoices").select("total_ttc, statut, client_id, date_facture, client:clients(raison_sociale)").gte("date_facture", twelveMonthsAgo),
-        db.from("interventions").select("id, statut").gte("date", monthStart).lte("date", today).eq("statut", "realisee"),
-        db.from("interventions").select("id, statut").gte("date", prevMonthStart).lte("date", prevMonthEnd).eq("statut", "realisee"),
+        db.from("interventions").select("id, statut").gte("date", monthStart).lte("date", today).in("statut", ["realisee", "rapport_transmis"]),
+        db.from("interventions").select("id, statut").gte("date", prevMonthStart).lte("date", prevMonthEnd).in("statut", ["realisee", "rapport_transmis"]),
         db.from("clients").select("id", { count: "exact", head: true }).gte("created_at", monthStart),
       ]);
 
