@@ -12,6 +12,7 @@ import { useState, useCallback } from "react";
 import { uploadInterventionPhotos, deleteInterventionPhoto, uploadSignature, deleteSignature } from "@/lib/photos";
 import type { PhotoFile } from "@/components/intervention-form";
 import { SignatureCanvas } from "@/components/signature-canvas";
+import { TechnicianSelect } from "@/components/technician-select";
 import { printDocument } from "@/lib/print";
 import { db } from "@/lib/db";
 import { supabase } from "@/integrations/supabase/client";
@@ -668,15 +669,11 @@ ${intervention.observations ? `
           </div>
           <div className="space-y-1.5">
             <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Technicien assigné</div>
-            <Select value={intervention.technicien_id ?? "none"} onValueChange={handleTechnicienChange}>
-              <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Non assigné" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Non assigné</SelectItem>
-                {assignableMembers.map((m) => (
-                  <SelectItem key={m.user_id} value={m.user_id}>{m.display_name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <TechnicianSelect
+              value={intervention.technicien_id ?? "none"}
+              onValueChange={handleTechnicienChange}
+              triggerClassName="h-8 text-sm"
+            />
           </div>
         </CardContent>
       </Card>

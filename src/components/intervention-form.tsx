@@ -40,6 +40,7 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { Camera, Plus, UserPlus, X } from "lucide-react";
 import { Link } from "@tanstack/react-router";
+import { TechnicianSelect } from "@/components/technician-select";
 
 // Cases à cocher rapport rapide — label court + phrase complète dans les observations
 const RAPPORT_ITEMS = [
@@ -433,18 +434,10 @@ export function InterventionForm({
       </div>
 
       <Field label="Technicien assigné">
-        <Select
+        <TechnicianSelect
           value={form.watch("technicien_id") ?? "none"}
           onValueChange={(v) => form.setValue("technicien_id", v === "none" ? undefined : v)}
-        >
-          <SelectTrigger><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="none">Non assigné</SelectItem>
-            {assignableMembers.map((m) => (
-              <SelectItem key={m.user_id} value={m.user_id}>{m.display_name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        />
       </Field>
 
       <Field label="Adresse du site (auto)">
