@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader,
@@ -40,6 +41,7 @@ function AddEmployeeDialog({ open, onOpenChange }: { open: boolean; onOpenChange
   const [displayName, setDisplayName] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [poste, setPoste] = useState<"bureau" | "technicien">("technicien");
   const [saving, setSaving] = useState(false);
   const [created, setCreated] = useState<{ username: string; password: string } | null>(null);
 
@@ -47,6 +49,7 @@ function AddEmployeeDialog({ open, onOpenChange }: { open: boolean; onOpenChange
     setDisplayName("");
     setUsername("");
     setPassword("");
+    setPoste("technicien");
     setCreated(null);
   }
 
@@ -58,8 +61,9 @@ function AddEmployeeDialog({ open, onOpenChange }: { open: boolean; onOpenChange
 
     setSaving(true);
     try {
-      await createEmployee({ data: { displayName: displayName.trim(), username: u, password } });
+      await createEmployee({ data: { displayName: displayName.trim(), username: u, password, poste } });
       qc.invalidateQueries({ queryKey: ["team_members"] });
+      qc.invalidateQueries({ queryKey: ["assignable_members"] });
       setCreated({ username: u, password });
       toast.success("Employé créé");
     } catch (e) {
@@ -99,6 +103,17 @@ function AddEmployeeDialog({ open, onOpenChange }: { open: boolean; onOpenChange
               <Label>Mot de passe</Label>
               <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
               <p className="text-[11px] text-muted-foreground">8 caractères minimum</p>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Poste</Label>
+              <Select value={poste} onValueChange={(v) => setPoste(v as "bureau" | "technicien")}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="technicien">Technicien — intervient sur le terrain</SelectItem>
+                  <SelectItem value="bureau">Bureau — ne fait pas partie du terrain</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-[11px] text-muted-foreground">Seuls les techniciens (et vous) apparaissent dans l'assignation des interventions.</p>
             </div>
             <Button className="w-full" disabled={saving} onClick={handleCreate}>
               {saving ? "Création…" : "Créer l'employé"}
@@ -170,8 +185,19 @@ function PermissionsEditor({ member }: { member: TeamMember }) {
     setPerms((p) => ({ ...p, [key]: !p[key] }));
   }
 
-  function applyPreset(keys: PermissionKey[]) {
+  // Le modèle pré-remplit les cases de permissions (à enregistrer via le bouton
+  // ci-dessous) et ajuste aussi le poste tout de suite — les deux restent
+  // modifiables indépendamment ensuite.
+  async function applyPreset(keys: PermissionKey[], poste: "bureau" | "technicien") {
     setPerms(presetToPermissions(keys));
+    try {
+      const { error } = await db.from("team_members").update({ poste }).eq("id", member.id);
+      if (error) throw error;
+      qc.invalidateQueries({ queryKey: ["team_members"] });
+      qc.invalidateQueries({ queryKey: ["assignable_members"] });
+    } catch (e) {
+      toast.error(errMessage(e));
+    }
   }
 
   async function handleSave() {
@@ -200,10 +226,10 @@ function PermissionsEditor({ member }: { member: TeamMember }) {
       {open && (
         <div className="mt-3 space-y-3">
           <div className="flex flex-wrap gap-2">
-            <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={() => applyPreset(PRESET_BUREAU)}>
+            <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={() => applyPreset(PRESET_BUREAU, "bureau")}>
               Modèle Bureau
             </Button>
-            <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={() => applyPreset(PRESET_TECHNICIEN)}>
+            <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={() => applyPreset(PRESET_TECHNICIEN, "technicien")}>
               Modèle Technicien
             </Button>
           </div>
@@ -230,6 +256,7 @@ function EmployeeRow({ member }: { member: TeamMember }) {
   const qc = useQueryClient();
   const [resetOpen, setResetOpen] = useState(false);
   const [toggling, setToggling] = useState(false);
+  const [posteSaving, setPosteSaving] = useState(false);
 
   async function handleToggleActive() {
     setToggling(true);
@@ -241,6 +268,21 @@ function EmployeeRow({ member }: { member: TeamMember }) {
       toast.error(errMessage(e));
     } finally {
       setToggling(false);
+    }
+  }
+
+  async function handlePosteChange(poste: string) {
+    setPosteSaving(true);
+    try {
+      const { error } = await db.from("team_members").update({ poste }).eq("id", member.id);
+      if (error) throw error;
+      qc.invalidateQueries({ queryKey: ["team_members"] });
+      qc.invalidateQueries({ queryKey: ["assignable_members"] });
+      toast.success("Poste mis à jour");
+    } catch (e) {
+      toast.error(errMessage(e));
+    } finally {
+      setPosteSaving(false);
     }
   }
 
@@ -262,12 +304,21 @@ function EmployeeRow({ member }: { member: TeamMember }) {
             <div className="font-semibold truncate">{member.display_name || member.username}</div>
             <div className="text-xs text-muted-foreground font-mono">{member.username}</div>
           </div>
-          <span className={cn(
-            "shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase",
-            member.active ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"
-          )}>
-            {member.active ? "Actif" : "Désactivé"}
-          </span>
+          <div className="flex flex-col items-end gap-1.5 shrink-0">
+            <span className={cn(
+              "rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase",
+              member.active ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"
+            )}>
+              {member.active ? "Actif" : "Désactivé"}
+            </span>
+            <Select value={member.poste ?? "technicien"} onValueChange={handlePosteChange} disabled={posteSaving}>
+              <SelectTrigger className="h-6 w-[7.5rem] px-2 text-[11px]"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="technicien">Technicien</SelectItem>
+                <SelectItem value="bureau">Bureau</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" size="sm" onClick={() => setResetOpen(true)}>
