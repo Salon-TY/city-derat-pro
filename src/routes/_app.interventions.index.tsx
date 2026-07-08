@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { db } from "@/lib/db";
 import { supabase } from "@/integrations/supabase/client";
@@ -7,11 +7,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useInterventions, useCurrentRole, useAssignableMembers, type Intervention } from "@/lib/queries";
+import { useInterventions, useCurrentRole, useMyPoste, useAssignableMembers, type Intervention } from "@/lib/queries";
 import { STATUTS_INTERVENTION, formatDateFR } from "@/lib/schemas";
 import {
   Plus, Search, Filter, X, List as ListIcon, Sun, CalendarDays,
-  ChevronLeft, ChevronRight, MapPin, Phone, UserRound
+  ChevronLeft, ChevronRight, MapPin, Phone, UserRound, ClipboardCheck
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -24,15 +24,17 @@ type View = "list" | "day" | "week";
 
 const STATUT_COLORS: Record<string, string> = {
   planifiee: "bg-accent/15 text-accent",
+  en_cours: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
   realisee: "bg-primary/15 text-primary",
-  rapport_transmis: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
+  rapport_transmis: "bg-success/15 text-success",
   annulee: "bg-muted text-muted-foreground line-through",
 };
 
 const STATUT_BADGE: Record<string, string> = {
   planifiee: "bg-accent/20 text-accent",
+  en_cours: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
   realisee: "bg-primary/20 text-primary",
-  rapport_transmis: "bg-blue-100 text-blue-700",
+  rapport_transmis: "bg-success/15 text-success",
   annulee: "bg-muted text-muted-foreground",
 };
 
@@ -101,27 +103,34 @@ function InterventionsPage() {
 
   const { data: allInterventions = [], isLoading } = useInterventions();
   const { data: role } = useCurrentRole();
+  const { data: myPoste } = useMyPoste();
   const { data: assignableMembers = [] } = useAssignableMembers();
-
-  // Un employé-technicien arrive par défaut sur "Mes interventions" ;
-  // le patron/bureau voit "Tous". Ne s'applique qu'une seule fois.
-  const defaultedRef = useRef(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   useEffect(() => {
-    if (defaultedRef.current || !role) return;
-    if (role !== "owner") {
-      supabase.auth.getUser().then(({ data }) => {
-        if (data.user) setTechnicienFilter(data.user.id);
-      });
+    supabase.auth.getUser().then(({ data }) => setCurrentUserId(data.user?.id ?? null));
+  }, []);
+
+  // Un technicien (non-propriétaire, poste "technicien") est verrouillé sur
+  // ses propres interventions — pas de bascule vers "Tous". Le bureau et le
+  // propriétaire voient tout, comme avant.
+  const isTechnician = role !== undefined && role !== "owner" && myPoste === "technicien";
+  useEffect(() => {
+    if (isTechnician && currentUserId && technicienFilter !== currentUserId) {
+      setTechnicienFilter(currentUserId);
     }
-    defaultedRef.current = true;
-  }, [role]);
+  }, [isTechnician, currentUserId]);
+
+  const aVerifierCount = useMemo(
+    () => allInterventions.filter((i) => i.statut === "realisee").length,
+    [allInterventions]
+  );
 
   const activeFiltersCount = [
     q.trim() ? 1 : 0,
     statutFilter !== "all" ? 1 : 0,
     typeFilter !== "all" ? 1 : 0,
     periodFilter !== "all" ? 1 : 0,
-    technicienFilter !== "all" ? 1 : 0,
+    (!isTechnician && technicienFilter !== "all") ? 1 : 0,
   ].reduce((a, b) => a + b, 0);
 
   const filteredList = useMemo(() => {
@@ -183,7 +192,8 @@ function InterventionsPage() {
     : `Semaine du ${wStart.toLocaleDateString("fr-FR", { day: "numeric", month: "short" })} au ${wEnd.toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}`;
 
   function resetFilters() {
-    setQ(""); setStatutFilter("all"); setTypeFilter("all"); setPeriodFilter("all"); setSortDir("desc"); setTechnicienFilter("all");
+    setQ(""); setStatutFilter("all"); setTypeFilter("all"); setPeriodFilter("all"); setSortDir("desc");
+    if (!isTechnician) setTechnicienFilter("all");
   }
 
   return (
@@ -194,6 +204,17 @@ function InterventionsPage() {
           <Link to="/interventions/new"><Plus className="mr-1 h-4 w-4" />Ajouter</Link>
         </Button>
       </div>
+
+      {/* File d'attente admin : rapports terminés en attente de vérification */}
+      {!isTechnician && aVerifierCount > 0 && (
+        <button
+          onClick={() => { setStatutFilter("realisee"); setView("list"); setFiltersOpen(false); }}
+          className="flex w-full items-center gap-2 rounded-xl border border-orange-300 bg-orange-50 px-3 py-2.5 text-sm text-orange-700 transition-colors hover:border-orange-400 dark:border-orange-900/50 dark:bg-orange-950/20 dark:text-orange-400"
+        >
+          <ClipboardCheck className="h-4 w-4 shrink-0" />
+          <span className="font-medium">{aVerifierCount} rapport{aVerifierCount > 1 ? "s" : ""} à vérifier</span>
+        </button>
+      )}
 
       {/* 3 view toggles */}
       <div className="flex rounded-xl bg-muted p-1 gap-1">
@@ -214,8 +235,9 @@ function InterventionsPage() {
         ))}
       </div>
 
-      {/* Technicien — s'applique aux 3 vues (Liste/Jour/Semaine) */}
-      {assignableMembers.length > 1 && (
+      {/* Technicien — s'applique aux 3 vues (Liste/Jour/Semaine). Masqué pour
+          un technicien : il est verrouillé sur ses propres interventions. */}
+      {!isTechnician && assignableMembers.length > 1 && (
         <div className="flex items-center gap-2">
           <UserRound className="h-4 w-4 shrink-0 text-muted-foreground" />
           <Select value={technicienFilter} onValueChange={setTechnicienFilter}>
