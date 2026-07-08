@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useIntervention, useSettings, useProduitsBiocides, useContracts, useAssignableMembers, resolveTechnicianName, useCurrentRole, useMyPoste } from "@/lib/queries";
+import { useIntervention, useSettings, useProduitsBiocides, useContracts, useAssignableMembers, resolveTechnicianName, useCurrentRole, useMyPoste, useSiteHistory, type AssignableMember, type Intervention } from "@/lib/queries";
 import { formatDateFR, STATUTS_INTERVENTION } from "@/lib/schemas";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,7 +7,7 @@ import {
   ArrowLeft, Receipt, Copy, FileText, MapPin, Calendar, Bug, FlaskConical,
   Package, ClipboardList, CalendarClock, Trash2, Camera, X, ChevronLeft,
   ChevronRight, Mail, PenLine, CheckCircle, AlertTriangle, Phone, ShieldCheck,
-  PlayCircle, Undo2,
+  PlayCircle, Undo2, History, ChevronDown, Timer,
 } from "lucide-react";
 import { useState, useCallback, useEffect } from "react";
 import { uploadInterventionPhotos, deleteInterventionPhoto, uploadSignature, deleteSignature } from "@/lib/photos";
@@ -26,6 +26,7 @@ import {
   AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 export const Route = createFileRoute("/_app/interventions/$id")({
   head: () => ({ meta: [{ title: "Rapport d'intervention — CITY DERAT" }] }),
@@ -56,6 +57,27 @@ function formatDateTime(iso: string | null | undefined): string {
   return d.toLocaleString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
+function formatDuration(startIso: string | null | undefined, endIso: string | null | undefined): string | null {
+  if (!startIso || !endIso) return null;
+  const start = new Date(startIso).getTime();
+  const end = new Date(endIso).getTime();
+  if (isNaN(start) || isNaN(end)) return null;
+  const totalMin = Math.max(0, Math.round((end - start) / 60000));
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  if (h === 0) return `${m} min`;
+  if (m === 0) return `${h} h`;
+  return `${h} h ${m} min`;
+}
+
+function toDatetimeLocal(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 function InterventionDetail() {
@@ -76,6 +98,14 @@ function InterventionDetail() {
   }, []);
   const isTechnician = role !== undefined && role !== "owner" && myPoste === "technicien";
   const isMine = !!intervention && !!currentUserId && intervention.technicien_id === currentUserId;
+  const { data: siteHistory = [] } = useSiteHistory(intervention?.client_id, intervention?.adresse_site, id);
+
+  const [heureDebutInput, setHeureDebutInput] = useState("");
+  const [heureFinInput, setHeureFinInput] = useState("");
+  useEffect(() => {
+    setHeureDebutInput(toDatetimeLocal(intervention?.heure_debut));
+    setHeureFinInput(toDatetimeLocal(intervention?.heure_fin));
+  }, [intervention?.heure_debut, intervention?.heure_fin]);
 
   // Un technicien ne peut consulter que ses propres interventions assignées —
   // sinon retour au Terrain.
@@ -166,7 +196,9 @@ function InterventionDetail() {
     if (url) {
       const signedAt = new Date().toISOString();
       await maybeIncrementContractPassages("realisee");
-      await db.from("interventions").update({ signature_url: url, signature_at: signedAt, statut: "realisee" }).eq("id", id);
+      const updates: Record<string, unknown> = { signature_url: url, signature_at: signedAt, statut: "realisee" };
+      if (!intervention?.heure_fin) updates.heure_fin = signedAt;
+      await db.from("interventions").update(updates).eq("id", id);
       qc.invalidateQueries({ queryKey: ["intervention", id] });
       toast.success("Signature enregistrée");
       setShowSignatureCanvas(false);
@@ -186,9 +218,26 @@ function InterventionDetail() {
 
   async function updateStatut(statut: string) {
     await maybeIncrementContractPassages(statut);
-    await db.from("interventions").update({ statut }).eq("id", id);
+    const updates: Record<string, unknown> = { statut };
+    const now = new Date().toISOString();
+    if (statut === "en_cours" && !intervention?.heure_debut) updates.heure_debut = now;
+    if (statut === "realisee" && !intervention?.heure_fin) updates.heure_fin = now;
+    await db.from("interventions").update(updates).eq("id", id);
     qc.invalidateQueries({ queryKey: ["intervention", id] });
     qc.invalidateQueries({ queryKey: ["interventions"] });
+  }
+
+  // ── Temps passé (correction manuelle, owner/bureau) ─────────────────────────
+
+  async function handleSaveTimes() {
+    const updates: Record<string, unknown> = {
+      heure_debut: heureDebutInput ? new Date(heureDebutInput).toISOString() : null,
+      heure_fin: heureFinInput ? new Date(heureFinInput).toISOString() : null,
+    };
+    const { error } = await db.from("interventions").update(updates).eq("id", id);
+    if (error) { toast.error(error.message); return; }
+    qc.invalidateQueries({ queryKey: ["intervention", id] });
+    toast.success("Horaires mis à jour");
   }
 
   // Admin : renvoie un rapport "Terminée" au technicien pour correction.
@@ -319,6 +368,7 @@ function InterventionDetail() {
     <div class="row"><span class="lbl">Quantités :</span><span class="val">${intervention.quantite || "—"}</span></div>
     ${intervention.date_prochain_passage ? `<div class="row"><span class="lbl">Prochain passage :</span><span class="val">${formatDateFR(intervention.date_prochain_passage)}</span></div>` : ""}
     ${technicienName ? `<div class="row"><span class="lbl">Réalisé par :</span><span class="val">${technicienName}</span></div>` : ""}
+    ${intervention.heure_debut && intervention.heure_fin ? `<div class="row"><span class="lbl">Durée :</span><span class="val">${formatDuration(intervention.heure_debut, intervention.heure_fin)}</span></div>` : ""}
   </div>
 
   ${intervention.observations ? `
@@ -740,6 +790,11 @@ ${intervention.observations ? `
         </CardContent>
       </Card>
 
+      {/* 2bis. Historique du site */}
+      {siteHistory.length > 0 && (
+        <SiteHistoryPanel history={siteHistory} assignableMembers={assignableMembers} />
+      )}
+
       {/* 3. Intervention */}
       <Card>
         <CardContent className="p-4 space-y-3">
@@ -751,6 +806,47 @@ ${intervention.observations ? `
           {intervention.date_prochain_passage && (
             <InfoRow icon={<CalendarClock className="h-4 w-4" />} label="Prochain passage" value={formatDateFR(intervention.date_prochain_passage)} />
           )}
+          <div className="space-y-1.5">
+            <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground flex items-center gap-1">
+              <Timer className="h-3 w-3" /> Durée sur site
+            </div>
+            {isTechnician ? (
+              <p className="text-sm">
+                {intervention.heure_debut && intervention.heure_fin
+                  ? `Durée sur site : ${formatDuration(intervention.heure_debut, intervention.heure_fin)}`
+                  : intervention.heure_debut
+                  ? `Démarrée le ${formatDateTime(intervention.heure_debut)}`
+                  : "—"}
+              </p>
+            ) : (
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex items-center gap-1.5">
+                  <label className="text-xs text-muted-foreground">Début</label>
+                  <input
+                    type="datetime-local"
+                    className="h-8 rounded-md border border-input bg-transparent px-2 text-xs"
+                    value={heureDebutInput}
+                    onChange={(e) => setHeureDebutInput(e.target.value)}
+                  />
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <label className="text-xs text-muted-foreground">Fin</label>
+                  <input
+                    type="datetime-local"
+                    className="h-8 rounded-md border border-input bg-transparent px-2 text-xs"
+                    value={heureFinInput}
+                    onChange={(e) => setHeureFinInput(e.target.value)}
+                  />
+                </div>
+                <Button size="sm" variant="outline" className="h-8" onClick={handleSaveTimes}>Enregistrer</Button>
+                {intervention.heure_debut && intervention.heure_fin && (
+                  <span className="text-xs text-muted-foreground">
+                    Durée : {formatDuration(intervention.heure_debut, intervention.heure_fin)}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
           <div className="space-y-1.5">
             <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Contrat rattaché</div>
             <Select value={intervention.contract_id ?? ""} onValueChange={handleContractChange}>
@@ -950,5 +1046,45 @@ function InfoRow({ icon, label, value }: { icon: React.ReactNode; label: string;
         <div className="text-sm">{value}</div>
       </div>
     </div>
+  );
+}
+
+// Passages précédents sur le même site — donne au technicien le contexte
+// sans qu'il ait besoin d'appeler le bureau.
+function SiteHistoryPanel({ history, assignableMembers }: { history: Intervention[]; assignableMembers: AssignableMember[] }) {
+  const [open, setOpen] = useState(true);
+  return (
+    <Card>
+      <Collapsible open={open} onOpenChange={setOpen}>
+        <CardContent className="p-4 space-y-2">
+          <CollapsibleTrigger className="flex w-full items-center justify-between text-left">
+            <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
+              <History className="h-4 w-4" /> Historique du site ({history.length})
+            </h2>
+            <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", open && "rotate-180")} />
+          </CollapsibleTrigger>
+          <CollapsibleContent className="space-y-2 pt-1">
+            {history.map((h) => (
+              <Link key={h.id} to="/interventions/$id" params={{ id: h.id }}>
+                <div className="rounded-md border p-2.5 text-xs space-y-1 hover:bg-muted/50 transition-colors">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-medium">{formatDateFR(h.date)}</span>
+                    <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase shrink-0", STATUT_COLORS[h.statut] ?? "bg-muted")}>
+                      {statutLabel(h.statut)}
+                    </span>
+                  </div>
+                  <div className="text-muted-foreground">
+                    {resolveTechnicianName(assignableMembers, h.technicien_id) ?? "Non assigné"}
+                    {h.produits ? ` · ${h.produits}` : ""}
+                    {h.photos?.length ? ` · ${h.photos.length} photo${h.photos.length > 1 ? "s" : ""}` : ""}
+                  </div>
+                  {h.observations && <p className="text-muted-foreground truncate">{h.observations}</p>}
+                </div>
+              </Link>
+            ))}
+          </CollapsibleContent>
+        </CardContent>
+      </Collapsible>
+    </Card>
   );
 }

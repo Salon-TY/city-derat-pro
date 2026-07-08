@@ -198,6 +198,8 @@ export type Database = {
           created_at: string
           date: string
           date_prochain_passage: string | null
+          heure_debut: string | null
+          heure_fin: string | null
           id: string
           observations: string | null
           produits: string | null
@@ -216,6 +218,8 @@ export type Database = {
           created_at?: string
           date: string
           date_prochain_passage?: string | null
+          heure_debut?: string | null
+          heure_fin?: string | null
           id?: string
           observations?: string | null
           produits?: string | null
@@ -234,6 +238,8 @@ export type Database = {
           created_at?: string
           date?: string
           date_prochain_passage?: string | null
+          heure_debut?: string | null
+          heure_fin?: string | null
           id?: string
           observations?: string | null
           produits?: string | null

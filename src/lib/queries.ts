@@ -42,6 +42,8 @@ export type Intervention = {
   observations: string;
   statut: string;
   date_prochain_passage: string | null;
+  heure_debut?: string | null;
+  heure_fin?: string | null;
   photos: string[] | null;
   signature_url: string | null;
   created_at: string;
@@ -476,6 +478,27 @@ export function useIntervention(id: string | undefined) {
       const { data, error } = await db.from("interventions").select("*, client:clients(*)").eq("id", id!).maybeSingle();
       if (error) throw error;
       return data;
+    },
+  });
+}
+
+// Interventions passées sur le même site (même client, et même adresse si
+// renseignée), pour donner au technicien le contexte des passages précédents.
+export function useSiteHistory(
+  clientId: string | undefined,
+  adresseSite: string | null | undefined,
+  excludeId: string | undefined
+) {
+  return useQuery({
+    queryKey: ["site_history", clientId, adresseSite, excludeId],
+    enabled: !!clientId,
+    queryFn: async (): Promise<Intervention[]> => {
+      let q = db.from("interventions").select("*, client:clients(*)").eq("client_id", clientId!);
+      if (adresseSite) q = q.eq("adresse_site", adresseSite);
+      q = q.order("date", { ascending: false }).limit(11);
+      const { data, error } = await q;
+      if (error) throw error;
+      return (data ?? []).filter((i) => i.id !== excludeId).slice(0, 10);
     },
   });
 }
