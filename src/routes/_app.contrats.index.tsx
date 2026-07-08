@@ -341,7 +341,11 @@ export function ContratForm({ contract, onSuccess }: { contract?: Contract; onSu
 
     if (isEdit) {
       const { error } = await db.from("contracts").update({ ...values, date_fin }).eq("id", contract!.id);
-      if (error) { toast.error(error.message); return; }
+      if (error) {
+        if (error.code === "23505") { toast.error("Ce numéro de contrat est déjà utilisé."); return; }
+        toast.error(error.message);
+        return;
+      }
       qc.invalidateQueries({ queryKey: ["contracts"] });
       qc.invalidateQueries({ queryKey: ["contract", contract!.id] });
       toast.success("Contrat mis à jour");
@@ -365,6 +369,11 @@ export function ContratForm({ contract, onSuccess }: { contract?: Contract; onSu
             <SelectContent>{clients.map((c) => <SelectItem key={c.id} value={c.id}>{c.raison_sociale}</SelectItem>)}</SelectContent>
           </Select>
         </Field>
+        {isEdit && (
+          <Field label="Numéro du contrat" error={(form.formState.errors as any).numero?.message}>
+            <Input {...form.register("numero")} placeholder="CT-2026-001" />
+          </Field>
+        )}
         <Field label="Nom de l'établissement"><Input {...form.register("nom_etablissement")} /></Field>
         <Field label="Adresse de l'établissement"><Textarea rows={2} {...form.register("adresse_etablissement")} /></Field>
       </div>
