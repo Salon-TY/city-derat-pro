@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useIntervention, useSettings, useProduitsBiocides, useContracts, useAssignableMembers, resolveTechnicianName } from "@/lib/queries";
+import { useIntervention, useSettings, useProduitsBiocides, useContracts, useAssignableMembers, resolveTechnicianName, useCurrentRole, useMyPoste } from "@/lib/queries";
 import { formatDateFR, STATUTS_INTERVENTION } from "@/lib/schemas";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,8 +7,9 @@ import {
   ArrowLeft, Receipt, Copy, FileText, MapPin, Calendar, Bug, FlaskConical,
   Package, ClipboardList, CalendarClock, Trash2, Camera, X, ChevronLeft,
   ChevronRight, Mail, PenLine, CheckCircle, AlertTriangle, Phone, ShieldCheck,
+  PlayCircle, Undo2,
 } from "lucide-react";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { uploadInterventionPhotos, deleteInterventionPhoto, uploadSignature, deleteSignature } from "@/lib/photos";
 import type { PhotoFile } from "@/components/intervention-form";
 import { SignatureCanvas } from "@/components/signature-canvas";
@@ -33,8 +34,9 @@ export const Route = createFileRoute("/_app/interventions/$id")({
 
 const STATUT_COLORS: Record<string, string> = {
   planifiee: "bg-accent/15 text-accent",
+  en_cours: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
   realisee: "bg-primary/15 text-primary",
-  rapport_transmis: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
+  rapport_transmis: "bg-success/15 text-success",
   annulee: "bg-muted text-muted-foreground",
 };
 
@@ -66,6 +68,26 @@ function InterventionDetail() {
   const { data: contracts = [] } = useContracts();
   const { data: assignableMembers = [] } = useAssignableMembers();
   const technicienName = resolveTechnicianName(assignableMembers, intervention?.technicien_id) ?? settings?.nom_technicien ?? null;
+  const { data: role } = useCurrentRole();
+  const { data: myPoste } = useMyPoste();
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => setCurrentUserId(data.user?.id ?? null));
+  }, []);
+  const isTechnician = role !== undefined && role !== "owner" && myPoste === "technicien";
+  const isMine = !!intervention && !!currentUserId && intervention.technicien_id === currentUserId;
+
+  // Un technicien ne peut consulter que ses propres interventions assignées —
+  // sinon retour au Terrain.
+  useEffect(() => {
+    if (!intervention || !currentUserId || role === undefined || myPoste === undefined) return;
+    if (role === "owner" || myPoste !== "technicien") return;
+    if (intervention.technicien_id !== currentUserId) {
+      toast.error("Accès non autorisé.");
+      navigate({ to: "/interventions", replace: true });
+    }
+  }, [intervention, currentUserId, role, myPoste, navigate]);
+
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [uploadingPhotos, setUploadingPhotos] = useState(false);
   const [showSignatureCanvas, setShowSignatureCanvas] = useState(false);
@@ -167,6 +189,22 @@ function InterventionDetail() {
     await db.from("interventions").update({ statut }).eq("id", id);
     qc.invalidateQueries({ queryKey: ["intervention", id] });
     qc.invalidateQueries({ queryKey: ["interventions"] });
+  }
+
+  // Admin : renvoie un rapport "Terminée" au technicien pour correction.
+  async function handleReturnToTechnician() {
+    const note = window.prompt("Note pour le technicien (optionnel) :", "");
+    if (note === null) return;
+    const updates: Record<string, unknown> = { statut: "en_cours" };
+    if (note.trim()) {
+      const current = intervention?.observations ?? "";
+      updates.observations = current ? `${current}\n[Retour admin] ${note.trim()}` : `[Retour admin] ${note.trim()}`;
+    }
+    const { error } = await db.from("interventions").update(updates).eq("id", id);
+    if (error) { toast.error(error.message); return; }
+    qc.invalidateQueries({ queryKey: ["intervention", id] });
+    qc.invalidateQueries({ queryKey: ["interventions"] });
+    toast.success("Renvoyé au technicien");
   }
 
   // ── Delete / Duplicate ─────────────────────────────────────────────────────
@@ -545,7 +583,7 @@ ${intervention.observations ? `
     // Propose changing statut
     setTimeout(async () => {
       await updateStatut("rapport_transmis");
-      toast.success("Statut mis à jour : Rapport transmis");
+      toast.success("Statut mis à jour : Vérifiée");
     }, 1500);
   }
 
@@ -565,12 +603,18 @@ ${intervention.observations ? `
           <ArrowLeft className="mr-1 h-4 w-4" /> Retour
         </Link>
         <div className="flex items-center gap-2">
-          <Select value={intervention.statut} onValueChange={updateStatut}>
-            <SelectTrigger className="h-8 text-xs w-36"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {STATUTS_INTERVENTION.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
-            </SelectContent>
-          </Select>
+          {isTechnician ? (
+            <span className={cn("rounded-full px-2.5 py-1 text-xs font-semibold uppercase", STATUT_COLORS[intervention.statut] ?? "bg-muted")}>
+              {statutLabel(intervention.statut)}
+            </span>
+          ) : (
+            <Select value={intervention.statut} onValueChange={updateStatut}>
+              <SelectTrigger className="h-8 text-xs w-36"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {STATUTS_INTERVENTION.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          )}
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive"><Trash2 className="h-4 w-4" /></Button>
@@ -607,6 +651,59 @@ ${intervention.observations ? `
           </div>
         </CardContent>
       </Card>
+
+      {/* 1bis. Workflow technicien — uniquement sur sa propre intervention */}
+      {isTechnician && isMine && (
+        <Card className="border-primary/30 bg-primary/5">
+          <CardContent className="p-4 space-y-2.5">
+            <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Mon intervention</h2>
+            {intervention.statut === "planifiee" && (
+              <Button className="w-full" onClick={() => updateStatut("en_cours")}>
+                <PlayCircle className="mr-2 h-4 w-4" /> Démarrer l'intervention
+              </Button>
+            )}
+            {intervention.statut === "en_cours" && (
+              <>
+                <p className="text-xs text-muted-foreground">
+                  Renseignez le compte-rendu, les produits utilisés, les photos et la signature client ci-dessous, puis marquez l'intervention comme terminée.
+                </p>
+                <Button className="w-full" onClick={() => updateStatut("realisee")}>
+                  <CheckCircle className="mr-2 h-4 w-4" /> Marquer terminée
+                </Button>
+              </>
+            )}
+            {intervention.statut === "realisee" && (
+              <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                <CheckCircle className="h-3.5 w-3.5 text-primary shrink-0" />
+                Terminée — en attente de vérification par le responsable.
+              </p>
+            )}
+            {intervention.statut === "rapport_transmis" && (
+              <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                <ShieldCheck className="h-3.5 w-3.5 text-success shrink-0" />
+                Vérifiée par le responsable — rapport envoyé au client.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* 1ter. Vérification admin — rapport terminé en attente de validation */}
+      {!isTechnician && intervention.statut === "realisee" && (
+        <Card className="border-orange-300 bg-orange-50 dark:border-orange-900/50 dark:bg-orange-950/20">
+          <CardContent className="p-4 space-y-2.5">
+            <h2 className="text-xs font-semibold uppercase tracking-wide text-orange-700 dark:text-orange-400">
+              À vérifier
+            </h2>
+            <p className="text-xs text-orange-700/80 dark:text-orange-400/80">
+              Le technicien a terminé ce rapport. Vérifiez son contenu puis validez-le pour l'envoyer au client.
+            </p>
+            <Button variant="outline" className="w-full" onClick={handleReturnToTechnician}>
+              <Undo2 className="mr-2 h-4 w-4" /> Renvoyer au technicien
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {/* 2. Client */}
       <Card>
@@ -807,8 +904,13 @@ ${intervention.observations ? `
         )}
 
         {clientEmail ? (
-          <Button className="w-full" variant="outline" onClick={handleSendEmail}>
-            <Mail className="mr-2 h-4 w-4" /> Envoyer rapport par email
+          <Button
+            className={cn("w-full", !isTechnician && intervention.statut === "realisee" && "bg-primary hover:bg-primary/90")}
+            variant={!isTechnician && intervention.statut === "realisee" ? "default" : "outline"}
+            onClick={handleSendEmail}
+          >
+            <Mail className="mr-2 h-4 w-4" />
+            {!isTechnician && intervention.statut === "realisee" ? "Valider et envoyer le rapport" : "Envoyer rapport par email"}
           </Button>
         ) : (
           <div className="space-y-1">

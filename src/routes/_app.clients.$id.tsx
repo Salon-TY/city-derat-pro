@@ -133,7 +133,13 @@ function ClientDetail() {
                 <Card><CardContent className="p-3 text-sm">
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-medium">{formatDateFR(i.date)}</span>
-                    <span className={`text-xs rounded-full px-2 py-0.5 ${i.statut === "realisee" ? "bg-success/15 text-success" : i.statut === "annulee" ? "bg-muted text-muted-foreground" : "bg-warning/20 text-warning-foreground"}`}>
+                    <span className={`text-xs rounded-full px-2 py-0.5 ${
+                      i.statut === "rapport_transmis" ? "bg-success/15 text-success"
+                      : i.statut === "realisee" ? "bg-primary/15 text-primary"
+                      : i.statut === "en_cours" ? "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400"
+                      : i.statut === "annulee" ? "bg-muted text-muted-foreground"
+                      : "bg-warning/20 text-warning-foreground"
+                    }`}>
                       {statutLabel(STATUTS_INTERVENTION, i.statut)}
                     </span>
                   </div>
