@@ -1,11 +1,11 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useDashboardStats, useSettings, useRelances } from "@/lib/queries";
+import { useDashboardStats, useSettings, useRelances, useCurrentRole, useMyPoste } from "@/lib/queries";
 import { formatEUR, formatDateFR } from "@/lib/schemas";
 import {
   ClipboardList, Euro, AlertCircle, Plus, UserPlus, FileText,
-  TrendingUp, TrendingDown, Minus, Phone, AlertTriangle, Package, MapPin, FileCheck, Bell
+  TrendingUp, TrendingDown, Minus, Phone, AlertTriangle, Package, MapPin, FileCheck, Bell, ClipboardCheck
 } from "lucide-react";
 import { useQuotes } from "@/lib/queries";
 import { useMemo } from "react";
@@ -25,6 +25,9 @@ function Dashboard() {
   const { data: settings } = useSettings();
   const { data: devis = [] } = useQuotes();
   const { data: relances = [] } = useRelances();
+  const { data: role } = useCurrentRole();
+  const { data: myPoste } = useMyPoste();
+  const isTechnician = role !== undefined && role !== "owner" && myPoste === "technicien";
   const navigate = useNavigate();
   const devisEnAttente = devis.filter((d) => d.statut === "brouillon" || d.statut === "envoye").length;
 
@@ -323,6 +326,20 @@ function Dashboard() {
                   ))}
                 </ul>
               </div>
+            </CardContent>
+          </Card>
+        </Link>
+      )}
+
+      {/* Rapports terminés en attente de vérification (owner/bureau) */}
+      {!isLoading && !isTechnician && (stats?.toVerifyCount ?? 0) > 0 && (
+        <Link to="/interventions" className="block">
+          <Card className="border-orange-300 bg-orange-50 dark:border-orange-900/50 dark:bg-orange-950/20 hover:border-orange-400 transition-colors">
+            <CardContent className="p-3 flex items-center gap-2">
+              <ClipboardCheck className="h-4 w-4 text-orange-500 shrink-0" />
+              <span className="text-sm font-semibold text-orange-700 dark:text-orange-400">
+                {stats!.toVerifyCount} rapport{stats!.toVerifyCount > 1 ? "s" : ""} à vérifier
+              </span>
             </CardContent>
           </Card>
         </Link>
