@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useDashboardStats, useSettings, useRelances, useCurrentRole, useMyPoste } from "@/lib/queries";
+import { useDashboardStats, useSettings, useRelances, useCurrentRole, useMyPoste, useMyAccess } from "@/lib/queries";
 import { formatEUR, formatDateFR } from "@/lib/schemas";
 import {
   ClipboardList, Euro, AlertCircle, Plus, UserPlus, FileText,
@@ -27,6 +27,7 @@ function Dashboard() {
   const { data: relances = [] } = useRelances();
   const { data: role } = useCurrentRole();
   const { data: myPoste } = useMyPoste();
+  const { can, loading: accessLoading } = useMyAccess();
   const isTechnician = role !== undefined && role !== "owner" && myPoste === "technicien";
   const navigate = useNavigate();
   const devisEnAttente = devis.filter((d) => d.statut === "brouillon" || d.statut === "envoye").length;
@@ -61,43 +62,45 @@ function Dashboard() {
       <div className="grid grid-cols-2 gap-2 md:grid-cols-1 md:gap-3">
 
         {/* CA du mois — cliquable vers trésorerie */}
-        <Link to="/tresorerie" className="col-span-2 order-1 md:order-2 block">
-          <Card className="overflow-hidden hover:border-accent/50 transition-colors">
-            <CardContent className="p-3 md:p-4">
-              <div className="flex items-center gap-3 md:gap-4">
-                <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-accent text-accent-foreground md:h-12 md:w-12">
-                  <Euro className="h-4 w-4 md:h-6 md:w-6" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="text-xs text-muted-foreground uppercase tracking-wide">CA du mois</div>
-                  <div className="mt-0.5 text-xl font-bold tabular-nums md:text-2xl">
-                    {isLoading ? "…" : formatEUR(caMonth)}
+        {!accessLoading && can("tresorerie") && (
+          <Link to="/tresorerie" className="col-span-2 order-1 md:order-2 block">
+            <Card className="overflow-hidden hover:border-accent/50 transition-colors">
+              <CardContent className="p-3 md:p-4">
+                <div className="flex items-center gap-3 md:gap-4">
+                  <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-accent text-accent-foreground md:h-12 md:w-12">
+                    <Euro className="h-4 w-4 md:h-6 md:w-6" />
                   </div>
-                  {!isLoading && stats?.caPrevMonth !== undefined && (
-                    <div className={`flex items-center gap-1 text-xs mt-0.5 ${caTrend === "up" ? "text-green-600" : caTrend === "down" ? "text-destructive" : "text-muted-foreground"}`}>
-                      {caTrend === "up" ? <TrendingUp className="h-3 w-3" /> : caTrend === "down" ? <TrendingDown className="h-3 w-3" /> : <Minus className="h-3 w-3" />}
-                      <span>vs mois dernier : {formatEUR(stats.caPrevMonth)}</span>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-xs text-muted-foreground uppercase tracking-wide">CA du mois</div>
+                    <div className="mt-0.5 text-xl font-bold tabular-nums md:text-2xl">
+                      {isLoading ? "…" : formatEUR(caMonth)}
                     </div>
-                  )}
-                  {!isLoading && objectif > 0 && (
-                    <div className="mt-2">
-                      <div className="flex justify-between text-[10px] text-muted-foreground mb-1">
-                        <span>Objectif mensuel</span>
-                        <span>{Math.round(caProgress)}% — {formatEUR(objectif)}</span>
+                    {!isLoading && stats?.caPrevMonth !== undefined && (
+                      <div className={`flex items-center gap-1 text-xs mt-0.5 ${caTrend === "up" ? "text-green-600" : caTrend === "down" ? "text-destructive" : "text-muted-foreground"}`}>
+                        {caTrend === "up" ? <TrendingUp className="h-3 w-3" /> : caTrend === "down" ? <TrendingDown className="h-3 w-3" /> : <Minus className="h-3 w-3" />}
+                        <span>vs mois dernier : {formatEUR(stats.caPrevMonth)}</span>
                       </div>
-                      <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
-                        <div
-                          className={`h-full rounded-full transition-all duration-500 ${caProgress >= 100 ? "bg-green-500" : caProgress >= 50 ? "bg-accent" : "bg-orange-400"}`}
-                          style={{ width: `${caProgress}%` }}
-                        />
+                    )}
+                    {!isLoading && objectif > 0 && (
+                      <div className="mt-2">
+                        <div className="flex justify-between text-[10px] text-muted-foreground mb-1">
+                          <span>Objectif mensuel</span>
+                          <span>{Math.round(caProgress)}% — {formatEUR(objectif)}</span>
+                        </div>
+                        <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all duration-500 ${caProgress >= 100 ? "bg-green-500" : caProgress >= 50 ? "bg-accent" : "bg-orange-400"}`}
+                            style={{ width: `${caProgress}%` }}
+                          />
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        </Link>
+              </CardContent>
+            </Card>
+          </Link>
+        )}
 
         {/* Interventions du jour — cliquable vers interventions */}
         <Link to="/interventions" className="overflow-hidden order-2 md:order-1 block">
@@ -119,7 +122,7 @@ function Dashboard() {
         </Link>
 
         {/* Devis en attente */}
-        {devisEnAttente > 0 && (
+        {!accessLoading && can("devis") && devisEnAttente > 0 && (
           <Link to="/devis" className="overflow-hidden order-3 block">
             <Card className="hover:border-accent/40 transition-colors h-full">
               <CardContent className="p-3 md:p-4">
@@ -138,25 +141,27 @@ function Dashboard() {
         )}
 
         {/* Factures impayées — cliquable vers factures */}
-        <Link to="/factures" search={{ statut: "retard" }} className="overflow-hidden order-3 block">
-          <Card className="hover:border-destructive/40 transition-colors h-full">
-            <CardContent className="p-3 md:p-4">
-              <div className="flex items-center gap-2 md:gap-4">
-                <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-destructive text-destructive-foreground md:h-12 md:w-12">
-                  <AlertCircle className="h-4 w-4 md:h-6 md:w-6" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="text-[10px] leading-tight text-muted-foreground uppercase tracking-wide md:text-xs">
-                    Impayées ({stats?.unpaidCount ?? 0})
+        {!accessLoading && can("factures") && (
+          <Link to="/factures" search={{ statut: "retard" }} className="overflow-hidden order-3 block">
+            <Card className="hover:border-destructive/40 transition-colors h-full">
+              <CardContent className="p-3 md:p-4">
+                <div className="flex items-center gap-2 md:gap-4">
+                  <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-destructive text-destructive-foreground md:h-12 md:w-12">
+                    <AlertCircle className="h-4 w-4 md:h-6 md:w-6" />
                   </div>
-                  <div className="mt-0.5 text-xl font-bold tabular-nums md:text-2xl">
-                    {isLoading ? "…" : formatEUR(stats?.unpaidTotal)}
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[10px] leading-tight text-muted-foreground uppercase tracking-wide md:text-xs">
+                      Impayées ({stats?.unpaidCount ?? 0})
+                    </div>
+                    <div className="mt-0.5 text-xl font-bold tabular-nums md:text-2xl">
+                      {isLoading ? "…" : formatEUR(stats?.unpaidTotal)}
+                    </div>
                   </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        </Link>
+              </CardContent>
+            </Card>
+          </Link>
+        )}
       </div>
 
       {/* Interventions du jour avec téléphone — cliquables */}
@@ -205,7 +210,7 @@ function Dashboard() {
       )}
 
       {/* Alerte mise en demeure : factures ≥ N3 jours sans relance niveau 3 */}
-      {!isLoading && miseEnDemeure.length > 0 && (
+      {!isLoading && !accessLoading && can("factures") && miseEnDemeure.length > 0 && (
         <Card className="border-destructive bg-destructive/10">
           <CardContent className="p-3 flex items-start gap-2">
             <Bell className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
@@ -233,7 +238,7 @@ function Dashboard() {
       )}
 
       {/* Alertes factures en retard > 7 jours (rouge) */}
-      {!isLoading && (stats?.overdueInvoices?.length ?? 0) > 0 && (
+      {!isLoading && !accessLoading && can("factures") && (stats?.overdueInvoices?.length ?? 0) > 0 && (
         <Card className="border-destructive/50 bg-destructive/5">
           <CardContent className="p-3 flex items-start gap-2">
             <AlertTriangle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
@@ -263,7 +268,7 @@ function Dashboard() {
       )}
 
       {/* Alertes contrats urgents (< 7 jours) — cliquable vers contrats */}
-      {!isLoading && (stats?.expiringContracts?.filter((c: any) => c.urgent).length ?? 0) > 0 && (
+      {!isLoading && !accessLoading && can("contrats") && (stats?.expiringContracts?.filter((c: any) => c.urgent).length ?? 0) > 0 && (
         <Link to="/contrats" className="block">
           <Card className="border-destructive/50 bg-destructive/5 hover:border-destructive/70 transition-colors">
             <CardContent className="p-3 flex items-start gap-2">
@@ -286,7 +291,7 @@ function Dashboard() {
       )}
 
       {/* Alertes contrats bientôt (7–30 jours) — cliquable vers contrats */}
-      {!isLoading && (stats?.expiringContracts?.filter((c: any) => !c.urgent).length ?? 0) > 0 && (
+      {!isLoading && !accessLoading && can("contrats") && (stats?.expiringContracts?.filter((c: any) => !c.urgent).length ?? 0) > 0 && (
         <Link to="/contrats" className="block">
           <Card className="border-orange-300 bg-orange-50 dark:bg-orange-950/20 hover:border-orange-400 transition-colors">
             <CardContent className="p-3 flex items-start gap-2">
@@ -309,7 +314,7 @@ function Dashboard() {
       )}
 
       {/* Alertes stock (par emplacement : garage / camion) */}
-      {!isLoading && (stats?.stockAlerts?.length ?? 0) > 0 && (
+      {!isLoading && !accessLoading && can("stock") && (stats?.stockAlerts?.length ?? 0) > 0 && (
         <Link to="/stock" className="block">
           <Card className="border-red-300 bg-red-50 dark:bg-red-950/20 hover:border-red-400 transition-colors">
             <CardContent className="p-3 flex items-start gap-2">
@@ -352,12 +357,16 @@ function Dashboard() {
           <Button asChild size="lg" className="h-14 justify-start bg-green-700 hover:bg-green-800 text-white">
             <Link to="/interventions/new"><Plus className="mr-2 h-5 w-5" /> Nouvelle intervention rapide</Link>
           </Button>
-          <Button asChild size="lg" variant="secondary" className="h-14 justify-start">
-            <Link to="/clients/new"><UserPlus className="mr-2 h-5 w-5" /> Nouveau client</Link>
-          </Button>
-          <Button asChild size="lg" className="h-14 justify-start bg-accent text-accent-foreground hover:bg-accent/90">
-            <Link to="/factures/new"><FileText className="mr-2 h-5 w-5" /> Nouvelle facture</Link>
-          </Button>
+          {!accessLoading && can("clients") && (
+            <Button asChild size="lg" variant="secondary" className="h-14 justify-start">
+              <Link to="/clients/new"><UserPlus className="mr-2 h-5 w-5" /> Nouveau client</Link>
+            </Button>
+          )}
+          {!accessLoading && can("factures") && (
+            <Button asChild size="lg" className="h-14 justify-start bg-accent text-accent-foreground hover:bg-accent/90">
+              <Link to="/factures/new"><FileText className="mr-2 h-5 w-5" /> Nouvelle facture</Link>
+            </Button>
+          )}
         </div>
       </div>
     </div>

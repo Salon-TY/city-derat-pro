@@ -10,7 +10,7 @@ import { toast } from "sonner";
 import { useState, useEffect, useRef } from "react";
 import { db } from "@/lib/db";
 import { formatEUR, formatDateFR, TYPES_INTERVENTION } from "@/lib/schemas";
-import { useClients, useSettings, useMyAccess } from "@/lib/queries";
+import { useClients, useSettings, useMyAccess, useCurrentRole, useMyPoste } from "@/lib/queries";
 import type { PermissionKey } from "@/lib/permissions";
 
 const mainNavItems: { to: string; label: string; icon: typeof LayoutDashboard; exact?: boolean; perm?: PermissionKey }[] = [
@@ -43,6 +43,18 @@ function GlobalSearch({ onClose }: { onClose: () => void }) {
   const [loading, setLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
+  const { can, loading: accessLoading } = useMyAccess();
+  const { data: role } = useCurrentRole();
+  const { data: myPoste } = useMyPoste();
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => setCurrentUserId(data.user?.id ?? null));
+  }, []);
+
+  const accessResolved = !accessLoading && role !== undefined && myPoste !== undefined;
+  const isTechnician = role !== undefined && role !== "owner" && myPoste === "technicien";
+  const canClients = accessResolved && can("clients");
+  const canFactures = accessResolved && can("factures");
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -50,21 +62,35 @@ function GlobalSearch({ onClose }: { onClose: () => void }) {
 
   useEffect(() => {
     if (!q.trim()) { setResults([]); return; }
+    // Tant que le rôle/poste n'est pas résolu (ou, pour un technicien, tant que
+    // son id n'est pas connu), on n'interroge rien pour éviter de fuiter des
+    // résultats non autorisés le temps que l'accès se résolve.
+    if (!accessResolved || (isTechnician && !currentUserId)) return;
     const t = setTimeout(async () => {
       setLoading(true);
       try {
         const term = q.trim().toLowerCase();
-        const [clients, factures, interventions] = await Promise.all([
-          db.from("clients").select("id, raison_sociale, adresse_site, telephone").ilike("raison_sociale", `%${term}%`).limit(5),
-          db.from("invoices").select("id, numero, total_ttc, statut, client:clients(raison_sociale)").or(`numero.eq.${Number(term) || 0}`).limit(5),
-          db.from("interventions").select("id, date, adresse_site, client:clients(raison_sociale)").or(`adresse_site.ilike.%${term}%`).limit(5),
-        ]);
 
-        // Also search factures by client name
-        const facturesClient = await db
-          .from("invoices")
-          .select("id, numero, total_ttc, statut, client:clients(raison_sociale)")
+        let interventionsQ = db
+          .from("interventions")
+          .select("id, date, adresse_site, technicien_id, client:clients(raison_sociale)")
+          .or(`adresse_site.ilike.%${term}%`)
           .limit(5);
+        if (isTechnician) interventionsQ = interventionsQ.eq("technicien_id", currentUserId!);
+
+        const [clients, factures, interventions, facturesClient] = await Promise.all([
+          canClients
+            ? db.from("clients").select("id, raison_sociale, adresse_site, telephone").ilike("raison_sociale", `%${term}%`).limit(5)
+            : Promise.resolve({ data: [] as any[] }),
+          canFactures
+            ? db.from("invoices").select("id, numero, total_ttc, statut, client:clients(raison_sociale)").or(`numero.eq.${Number(term) || 0}`).limit(5)
+            : Promise.resolve({ data: [] as any[] }),
+          interventionsQ,
+          // Also search factures by client name
+          canFactures
+            ? db.from("invoices").select("id, numero, total_ttc, statut, client:clients(raison_sociale)").limit(5)
+            : Promise.resolve({ data: [] as any[] }),
+        ]);
 
         const out: SearchResult[] = [];
 
@@ -109,7 +135,7 @@ function GlobalSearch({ onClose }: { onClose: () => void }) {
       }
     }, 250);
     return () => clearTimeout(t);
-  }, [q]);
+  }, [q, accessResolved, isTechnician, currentUserId, canClients, canFactures]);
 
   function go(href: string) {
     navigate({ to: href as any });
@@ -204,11 +230,22 @@ function localDateStr(d: Date) {
 function QuickInterventionModal({ onClose }: { onClose: () => void }) {
   const navigate = useNavigate();
   const { data: clients = [] } = useClients();
+  const { can, loading: accessLoading } = useMyAccess();
   const [clientId, setClientId] = useState("");
   const [type, setType] = useState<string>(TYPES_INTERVENTION[0]);
   const [date, setDate] = useState(localDateStr(new Date()));
   const [saving, setSaving] = useState(false);
   const [showMore, setShowMore] = useState(false);
+
+  // "Intervention complète" reste toujours proposée (Terrain toujours autorisé) ;
+  // les 3 autres raccourcis dépendent des permissions du compte.
+  const hasExtraPermissions = !accessLoading && (can("clients") || can("factures") || can("devis"));
+  const extraActions = [
+    { label: "Intervention complète", to: "/interventions/new", color: "bg-primary/10 text-primary" },
+    ...(!accessLoading && can("clients") ? [{ label: "Nouveau client", to: "/clients/new", color: "bg-primary/10 text-primary" }] : []),
+    ...(!accessLoading && can("factures") ? [{ label: "Nouvelle facture", to: "/factures/new", color: "bg-accent/10 text-accent" }] : []),
+    ...(!accessLoading && can("devis") ? [{ label: "Nouveau devis", to: "/devis/new", color: "bg-accent/10 text-accent" }] : []),
+  ];
 
   async function handleCreate() {
     if (!clientId) { toast.error("Sélectionnez un client"); return; }
@@ -289,33 +326,30 @@ function QuickInterventionModal({ onClose }: { onClose: () => void }) {
           >
             {saving ? "Création…" : "Créer en 1 clic"}
           </button>
-          <div className="border-t pt-3 space-y-2">
-            <button
-              onClick={() => setShowMore((v) => !v)}
-              className="text-xs text-muted-foreground hover:text-foreground w-full text-center"
-            >
-              Plus d'options {showMore ? "▲" : "▼"}
-            </button>
-            {showMore && (
-              <div className="space-y-2">
-                {[
-                  { label: "Intervention complète", to: "/interventions/new", color: "bg-primary/10 text-primary" },
-                  { label: "Nouveau client", to: "/clients/new", color: "bg-primary/10 text-primary" },
-                  { label: "Nouvelle facture", to: "/factures/new", color: "bg-accent/10 text-accent" },
-                  { label: "Nouveau devis", to: "/devis/new", color: "bg-accent/10 text-accent" },
-                ].map((a) => (
-                  <Link
-                    key={a.to}
-                    to={a.to as any}
-                    onClick={onClose}
-                    className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition-colors ${a.color} hover:opacity-80`}
-                  >
-                    <Plus className="h-4 w-4" /> {a.label}
-                  </Link>
-                ))}
-              </div>
-            )}
-          </div>
+          {hasExtraPermissions && (
+            <div className="border-t pt-3 space-y-2">
+              <button
+                onClick={() => setShowMore((v) => !v)}
+                className="text-xs text-muted-foreground hover:text-foreground w-full text-center"
+              >
+                Plus d'options {showMore ? "▲" : "▼"}
+              </button>
+              {showMore && (
+                <div className="space-y-2">
+                  {extraActions.map((a) => (
+                    <Link
+                      key={a.to}
+                      to={a.to as any}
+                      onClick={onClose}
+                      className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition-colors ${a.color} hover:opacity-80`}
+                    >
+                      <Plus className="h-4 w-4" /> {a.label}
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -340,6 +374,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     ? [...filteredMore, { to: "/equipe", label: "Équipe", icon: UserCog }]
     : filteredMore;
   const hasMore = moreItems.length > 0;
+
+  // La recherche reste utile tant qu'au moins une catégorie est consultable ;
+  // le Terrain (interventions) est toujours autorisé, donc en pratique elle
+  // ne disparaît que si "terrain" venait un jour à ne plus l'être.
+  const searchAllowed = !accessLoading && (can("clients") || can("factures") || can("terrain"));
 
   async function handleSignOut() {
     await qc.cancelQueries();
@@ -375,13 +414,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
           </Link>
           <div className="flex items-center gap-1 shrink-0">
-            <button
-              onClick={() => setSearchOpen(true)}
-              className="grid h-9 w-9 place-items-center rounded-xl hover:bg-white/10 transition-colors"
-              aria-label="Recherche"
-            >
-              <Search className="h-5 w-5" />
-            </button>
+            {searchAllowed && (
+              <button
+                onClick={() => setSearchOpen(true)}
+                className="grid h-9 w-9 place-items-center rounded-xl hover:bg-white/10 transition-colors"
+                aria-label="Recherche"
+              >
+                <Search className="h-5 w-5" />
+              </button>
+            )}
             <Link
               to="/parametres"
               className="grid h-9 w-9 place-items-center rounded-xl hover:bg-white/10 transition-colors"
