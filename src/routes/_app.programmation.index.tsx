@@ -4,7 +4,7 @@
 // d'intervention pour que seule la date (et éventuellement le technicien)
 // reste à saisir.
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -24,6 +24,9 @@ import { PermissionGate } from "@/components/permission-gate";
 
 export const Route = createFileRoute("/_app/programmation/")({
   head: () => ({ meta: [{ title: "Passages à programmer — CITY DERAT" }] }),
+  validateSearch: (s: Record<string, unknown>) => ({
+    contract_id: typeof s.contract_id === "string" ? s.contract_id : undefined,
+  }),
   component: () => (
     <PermissionGate perm="programmation">
       <ProgrammationPage />
@@ -55,8 +58,19 @@ function deriveTypeIntervention(typePrestation: string | null | undefined): (typ
 }
 
 function ProgrammationPage() {
+  const search = Route.useSearch();
   const { data: contracts = [], isLoading } = usePassagesAProgrammer();
   const [dialogContract, setDialogContract] = useState<PassageAProgrammer | null>(null);
+
+  // Lien depuis la fiche contrat ("Programmer") : ouvre directement le
+  // dialogue pour ce contrat une fois la file chargée.
+  const [autoOpened, setAutoOpened] = useState(false);
+  useEffect(() => {
+    if (autoOpened || !search.contract_id || contracts.length === 0) return;
+    const match = contracts.find((c) => c.id === search.contract_id);
+    if (match) setDialogContract(match);
+    setAutoOpened(true);
+  }, [search.contract_id, contracts, autoOpened]);
 
   return (
     <div className="space-y-4">

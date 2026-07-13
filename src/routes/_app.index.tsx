@@ -1,11 +1,11 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useDashboardStats, useSettings, useRelances, useCurrentRole, useMyPoste, useMyAccess, useMyTodoCount, usePendingStockRequestsCount } from "@/lib/queries";
+import { useDashboardStats, useSettings, useRelances, useCurrentRole, useMyPoste, useMyAccess, useMyTodoCount, usePendingStockRequestsCount, usePassagesAProgrammer } from "@/lib/queries";
 import { formatEUR, formatDateFR } from "@/lib/schemas";
 import {
   ClipboardList, Euro, AlertCircle, Plus, UserPlus, FileText,
-  TrendingUp, TrendingDown, Minus, Phone, AlertTriangle, Package, MapPin, FileCheck, Bell, ClipboardCheck, PackagePlus,
+  TrendingUp, TrendingDown, Minus, Phone, AlertTriangle, Package, MapPin, FileCheck, Bell, ClipboardCheck, PackagePlus, CalendarClock,
 } from "lucide-react";
 import { useQuotes } from "@/lib/queries";
 import { useMemo } from "react";
@@ -31,6 +31,8 @@ function Dashboard() {
   const isTechnician = role !== undefined && role !== "owner" && myPoste === "technicien";
   const { data: myTodoCount = 0 } = useMyTodoCount();
   const { data: pendingReapproCount = 0 } = usePendingStockRequestsCount();
+  const { data: contratsAProgrammer = [] } = usePassagesAProgrammer();
+  const passagesAProgrammerCount = contratsAProgrammer.reduce((s, c) => s + c.restant, 0);
   const navigate = useNavigate();
   const devisEnAttente = devis.filter((d) => d.statut === "brouillon" || d.statut === "envoye").length;
 
@@ -360,6 +362,20 @@ function Dashboard() {
               <PackagePlus className="h-4 w-4 text-orange-500 shrink-0" />
               <span className="text-sm font-semibold text-orange-700 dark:text-orange-400">
                 {pendingReapproCount} demande{pendingReapproCount > 1 ? "s" : ""} de réappro en attente
+              </span>
+            </CardContent>
+          </Card>
+        </Link>
+      )}
+
+      {/* Passages de contrat à programmer */}
+      {!isLoading && !accessLoading && can("programmation") && passagesAProgrammerCount > 0 && (
+        <Link to="/programmation" search={{ contract_id: undefined }} className="block">
+          <Card className="border-orange-300 bg-orange-50 dark:border-orange-900/50 dark:bg-orange-950/20 hover:border-orange-400 transition-colors">
+            <CardContent className="p-3 flex items-center gap-2">
+              <CalendarClock className="h-4 w-4 text-orange-500 shrink-0" />
+              <span className="text-sm font-semibold text-orange-700 dark:text-orange-400">
+                {passagesAProgrammerCount} passage{passagesAProgrammerCount > 1 ? "s" : ""} de contrat à programmer
               </span>
             </CardContent>
           </Card>

@@ -245,6 +245,10 @@ function ContractDetail() {
 
   const clientEmail = contract.client?.email ?? "";
   const hasSig = !!contract.signature_url;
+  // Même calcul que la file /programmation : passages déjà planifiés/en cours
+  // exclus du reste à programmer pour ne jamais sur-planifier.
+  const planifiesCount = interventions.filter((i) => i.statut === "planifiee" || i.statut === "en_cours").length;
+  const restant = Math.max(0, contract.nb_passages_inclus - contract.passages_realises - planifiesCount);
 
   return (
     <div className="space-y-4">
@@ -324,6 +328,19 @@ function ContractDetail() {
               {contract.passages_realises}/{contract.nb_passages_inclus} passages
             </span>
           </div>
+          {restant > 0 && (
+            <div className="flex items-center justify-between gap-2 pt-1">
+              <span className="text-xs font-medium text-orange-600 dark:text-orange-400">
+                {restant} passage{restant > 1 ? "s" : ""} à programmer
+                {planifiesCount > 0 ? ` (${planifiesCount} déjà planifié${planifiesCount > 1 ? "s" : ""})` : ""}
+              </span>
+              <Link to="/programmation" search={{ contract_id: contract.id }}>
+                <Button size="sm" variant="outline" className="h-7 text-xs shrink-0">
+                  <CalendarClock className="mr-1 h-3.5 w-3.5" /> Programmer
+                </Button>
+              </Link>
+            </div>
+          )}
         </CardContent>
       </Card>
 
