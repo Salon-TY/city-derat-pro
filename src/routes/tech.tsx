@@ -1,14 +1,14 @@
 import { createFileRoute, Outlet, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { AppShell } from "@/components/app-shell";
 import { useCurrentRole, useMyPoste } from "@/lib/queries";
+import { TechShell } from "@/components/tech-shell";
 
-export const Route = createFileRoute("/_app")({
-  component: AppLayout,
+export const Route = createFileRoute("/tech")({
+  component: TechLayout,
 });
 
-function AppLayout() {
+function TechLayout() {
   const navigate = useNavigate();
   const [sessionReady, setSessionReady] = useState(false);
   const { data: role } = useCurrentRole();
@@ -29,9 +29,7 @@ function AppLayout() {
       if (event === "SIGNED_OUT") {
         setSessionReady(false);
         navigate({ to: "/auth", replace: true });
-      } else if (event === "SIGNED_IN" && session) {
-        setSessionReady(true);
-      } else if (event === "TOKEN_REFRESHED" && session) {
+      } else if ((event === "SIGNED_IN" || event === "TOKEN_REFRESHED") && session) {
         setSessionReady(true);
       }
     });
@@ -41,16 +39,15 @@ function AppLayout() {
   const posteResolved = role !== undefined && myPoste !== undefined;
   const isTechnician = role !== undefined && role !== "owner" && myPoste === "technicien";
 
-  // Un technicien ne doit JAMAIS rendre l'interface admin, même une fraction
-  // de seconde : il a sa propre interface (/tech/*). On attend la résolution
-  // du rôle/poste avant de rendre quoi que ce soit.
+  // Un non-technicien (owner, bureau) ne doit jamais voir l'interface
+  // technicien — retour à l'interface admin.
   useEffect(() => {
-    if (sessionReady && posteResolved && isTechnician) {
-      navigate({ to: "/tech", replace: true });
+    if (sessionReady && posteResolved && !isTechnician) {
+      navigate({ to: "/", replace: true });
     }
   }, [sessionReady, posteResolved, isTechnician, navigate]);
 
-  if (!sessionReady || !posteResolved || isTechnician) {
+  if (!sessionReady || !posteResolved || !isTechnician) {
     return (
       <div className="grid min-h-screen place-items-center bg-background">
         <div className="text-sm text-muted-foreground">Chargement...</div>
@@ -59,8 +56,8 @@ function AppLayout() {
   }
 
   return (
-    <AppShell>
+    <TechShell>
       <Outlet />
-    </AppShell>
+    </TechShell>
   );
 }

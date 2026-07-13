@@ -540,7 +540,7 @@ export function useClient(id: string | undefined) {
   });
 }
 
-export function useInterventions(filters?: { client_id?: string; statut?: string; contract_id?: string }) {
+export function useInterventions(filters?: { client_id?: string; statut?: string; contract_id?: string; technicien_id?: string }) {
   return useQuery({
     queryKey: ["interventions", filters],
     queryFn: async (): Promise<Intervention[]> => {
@@ -548,6 +548,7 @@ export function useInterventions(filters?: { client_id?: string; statut?: string
       if (filters?.client_id) q = q.eq("client_id", filters.client_id);
       if (filters?.statut) q = q.eq("statut", filters.statut);
       if (filters?.contract_id) q = q.eq("contract_id", filters.contract_id);
+      if (filters?.technicien_id) q = q.eq("technicien_id", filters.technicien_id);
       const { data, error } = await q;
       if (error) throw error;
       return data ?? [];

@@ -9,13 +9,17 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as TechRouteImport } from './routes/tech'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AppRouteImport } from './routes/_app'
+import { Route as TechIndexRouteImport } from './routes/tech.index'
 import { Route as AppIndexRouteImport } from './routes/_app.index'
+import { Route as TechCamionRouteImport } from './routes/tech.camion'
 import { Route as AppTresorerieRouteImport } from './routes/_app.tresorerie'
 import { Route as AppStatsRouteImport } from './routes/_app.stats'
 import { Route as AppPlanningRouteImport } from './routes/_app.planning'
 import { Route as AppParametresRouteImport } from './routes/_app.parametres'
+import { Route as TechChantiersIndexRouteImport } from './routes/tech.chantiers.index'
 import { Route as AppStockIndexRouteImport } from './routes/_app.stock.index'
 import { Route as AppReapproIndexRouteImport } from './routes/_app.reappro.index'
 import { Route as AppInterventionsIndexRouteImport } from './routes/_app.interventions.index'
@@ -24,6 +28,7 @@ import { Route as AppEquipeIndexRouteImport } from './routes/_app.equipe.index'
 import { Route as AppDevisIndexRouteImport } from './routes/_app.devis.index'
 import { Route as AppContratsIndexRouteImport } from './routes/_app.contrats.index'
 import { Route as AppClientsIndexRouteImport } from './routes/_app.clients.index'
+import { Route as TechChantiersIdRouteImport } from './routes/tech.chantiers.$id'
 import { Route as AppInterventionsNewRouteImport } from './routes/_app.interventions.new'
 import { Route as AppInterventionsIdRouteImport } from './routes/_app.interventions.$id'
 import { Route as AppFacturesNewRouteImport } from './routes/_app.factures.new'
@@ -34,6 +39,11 @@ import { Route as AppContratsIdRouteImport } from './routes/_app.contrats.$id'
 import { Route as AppClientsNewRouteImport } from './routes/_app.clients.new'
 import { Route as AppClientsIdRouteImport } from './routes/_app.clients.$id'
 
+const TechRoute = TechRouteImport.update({
+  id: '/tech',
+  path: '/tech',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
   path: '/auth',
@@ -43,10 +53,20 @@ const AppRoute = AppRouteImport.update({
   id: '/_app',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TechIndexRoute = TechIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => TechRoute,
+} as any)
 const AppIndexRoute = AppIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => AppRoute,
+} as any)
+const TechCamionRoute = TechCamionRouteImport.update({
+  id: '/camion',
+  path: '/camion',
+  getParentRoute: () => TechRoute,
 } as any)
 const AppTresorerieRoute = AppTresorerieRouteImport.update({
   id: '/tresorerie',
@@ -67,6 +87,11 @@ const AppParametresRoute = AppParametresRouteImport.update({
   id: '/parametres',
   path: '/parametres',
   getParentRoute: () => AppRoute,
+} as any)
+const TechChantiersIndexRoute = TechChantiersIndexRouteImport.update({
+  id: '/chantiers/',
+  path: '/chantiers/',
+  getParentRoute: () => TechRoute,
 } as any)
 const AppStockIndexRoute = AppStockIndexRouteImport.update({
   id: '/stock/',
@@ -107,6 +132,11 @@ const AppClientsIndexRoute = AppClientsIndexRouteImport.update({
   id: '/clients/',
   path: '/clients/',
   getParentRoute: () => AppRoute,
+} as any)
+const TechChantiersIdRoute = TechChantiersIdRouteImport.update({
+  id: '/chantiers/$id',
+  path: '/chantiers/$id',
+  getParentRoute: () => TechRoute,
 } as any)
 const AppInterventionsNewRoute = AppInterventionsNewRouteImport.update({
   id: '/interventions/new',
@@ -157,10 +187,13 @@ const AppClientsIdRoute = AppClientsIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
   '/auth': typeof AuthRoute
+  '/tech': typeof TechRouteWithChildren
   '/parametres': typeof AppParametresRoute
   '/planning': typeof AppPlanningRoute
   '/stats': typeof AppStatsRoute
   '/tresorerie': typeof AppTresorerieRoute
+  '/tech/camion': typeof TechCamionRoute
+  '/tech/': typeof TechIndexRoute
   '/clients/$id': typeof AppClientsIdRoute
   '/clients/new': typeof AppClientsNewRoute
   '/contrats/$id': typeof AppContratsIdRoute
@@ -170,6 +203,7 @@ export interface FileRoutesByFullPath {
   '/factures/new': typeof AppFacturesNewRoute
   '/interventions/$id': typeof AppInterventionsIdRoute
   '/interventions/new': typeof AppInterventionsNewRoute
+  '/tech/chantiers/$id': typeof TechChantiersIdRoute
   '/clients/': typeof AppClientsIndexRoute
   '/contrats/': typeof AppContratsIndexRoute
   '/devis/': typeof AppDevisIndexRoute
@@ -178,6 +212,7 @@ export interface FileRoutesByFullPath {
   '/interventions/': typeof AppInterventionsIndexRoute
   '/reappro/': typeof AppReapproIndexRoute
   '/stock/': typeof AppStockIndexRoute
+  '/tech/chantiers/': typeof TechChantiersIndexRoute
 }
 export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
@@ -185,7 +220,9 @@ export interface FileRoutesByTo {
   '/planning': typeof AppPlanningRoute
   '/stats': typeof AppStatsRoute
   '/tresorerie': typeof AppTresorerieRoute
+  '/tech/camion': typeof TechCamionRoute
   '/': typeof AppIndexRoute
+  '/tech': typeof TechIndexRoute
   '/clients/$id': typeof AppClientsIdRoute
   '/clients/new': typeof AppClientsNewRoute
   '/contrats/$id': typeof AppContratsIdRoute
@@ -195,6 +232,7 @@ export interface FileRoutesByTo {
   '/factures/new': typeof AppFacturesNewRoute
   '/interventions/$id': typeof AppInterventionsIdRoute
   '/interventions/new': typeof AppInterventionsNewRoute
+  '/tech/chantiers/$id': typeof TechChantiersIdRoute
   '/clients': typeof AppClientsIndexRoute
   '/contrats': typeof AppContratsIndexRoute
   '/devis': typeof AppDevisIndexRoute
@@ -203,16 +241,20 @@ export interface FileRoutesByTo {
   '/interventions': typeof AppInterventionsIndexRoute
   '/reappro': typeof AppReapproIndexRoute
   '/stock': typeof AppStockIndexRoute
+  '/tech/chantiers': typeof TechChantiersIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_app': typeof AppRouteWithChildren
   '/auth': typeof AuthRoute
+  '/tech': typeof TechRouteWithChildren
   '/_app/parametres': typeof AppParametresRoute
   '/_app/planning': typeof AppPlanningRoute
   '/_app/stats': typeof AppStatsRoute
   '/_app/tresorerie': typeof AppTresorerieRoute
+  '/tech/camion': typeof TechCamionRoute
   '/_app/': typeof AppIndexRoute
+  '/tech/': typeof TechIndexRoute
   '/_app/clients/$id': typeof AppClientsIdRoute
   '/_app/clients/new': typeof AppClientsNewRoute
   '/_app/contrats/$id': typeof AppContratsIdRoute
@@ -222,6 +264,7 @@ export interface FileRoutesById {
   '/_app/factures/new': typeof AppFacturesNewRoute
   '/_app/interventions/$id': typeof AppInterventionsIdRoute
   '/_app/interventions/new': typeof AppInterventionsNewRoute
+  '/tech/chantiers/$id': typeof TechChantiersIdRoute
   '/_app/clients/': typeof AppClientsIndexRoute
   '/_app/contrats/': typeof AppContratsIndexRoute
   '/_app/devis/': typeof AppDevisIndexRoute
@@ -230,16 +273,20 @@ export interface FileRoutesById {
   '/_app/interventions/': typeof AppInterventionsIndexRoute
   '/_app/reappro/': typeof AppReapproIndexRoute
   '/_app/stock/': typeof AppStockIndexRoute
+  '/tech/chantiers/': typeof TechChantiersIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
     | '/auth'
+    | '/tech'
     | '/parametres'
     | '/planning'
     | '/stats'
     | '/tresorerie'
+    | '/tech/camion'
+    | '/tech/'
     | '/clients/$id'
     | '/clients/new'
     | '/contrats/$id'
@@ -249,6 +296,7 @@ export interface FileRouteTypes {
     | '/factures/new'
     | '/interventions/$id'
     | '/interventions/new'
+    | '/tech/chantiers/$id'
     | '/clients/'
     | '/contrats/'
     | '/devis/'
@@ -257,6 +305,7 @@ export interface FileRouteTypes {
     | '/interventions/'
     | '/reappro/'
     | '/stock/'
+    | '/tech/chantiers/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/auth'
@@ -264,7 +313,9 @@ export interface FileRouteTypes {
     | '/planning'
     | '/stats'
     | '/tresorerie'
+    | '/tech/camion'
     | '/'
+    | '/tech'
     | '/clients/$id'
     | '/clients/new'
     | '/contrats/$id'
@@ -274,6 +325,7 @@ export interface FileRouteTypes {
     | '/factures/new'
     | '/interventions/$id'
     | '/interventions/new'
+    | '/tech/chantiers/$id'
     | '/clients'
     | '/contrats'
     | '/devis'
@@ -282,15 +334,19 @@ export interface FileRouteTypes {
     | '/interventions'
     | '/reappro'
     | '/stock'
+    | '/tech/chantiers'
   id:
     | '__root__'
     | '/_app'
     | '/auth'
+    | '/tech'
     | '/_app/parametres'
     | '/_app/planning'
     | '/_app/stats'
     | '/_app/tresorerie'
+    | '/tech/camion'
     | '/_app/'
+    | '/tech/'
     | '/_app/clients/$id'
     | '/_app/clients/new'
     | '/_app/contrats/$id'
@@ -300,6 +356,7 @@ export interface FileRouteTypes {
     | '/_app/factures/new'
     | '/_app/interventions/$id'
     | '/_app/interventions/new'
+    | '/tech/chantiers/$id'
     | '/_app/clients/'
     | '/_app/contrats/'
     | '/_app/devis/'
@@ -308,15 +365,24 @@ export interface FileRouteTypes {
     | '/_app/interventions/'
     | '/_app/reappro/'
     | '/_app/stock/'
+    | '/tech/chantiers/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   AppRoute: typeof AppRouteWithChildren
   AuthRoute: typeof AuthRoute
+  TechRoute: typeof TechRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/tech': {
+      id: '/tech'
+      path: '/tech'
+      fullPath: '/tech'
+      preLoaderRoute: typeof TechRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/auth': {
       id: '/auth'
       path: '/auth'
@@ -331,12 +397,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/tech/': {
+      id: '/tech/'
+      path: '/'
+      fullPath: '/tech/'
+      preLoaderRoute: typeof TechIndexRouteImport
+      parentRoute: typeof TechRoute
+    }
     '/_app/': {
       id: '/_app/'
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof AppIndexRouteImport
       parentRoute: typeof AppRoute
+    }
+    '/tech/camion': {
+      id: '/tech/camion'
+      path: '/camion'
+      fullPath: '/tech/camion'
+      preLoaderRoute: typeof TechCamionRouteImport
+      parentRoute: typeof TechRoute
     }
     '/_app/tresorerie': {
       id: '/_app/tresorerie'
@@ -365,6 +445,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/parametres'
       preLoaderRoute: typeof AppParametresRouteImport
       parentRoute: typeof AppRoute
+    }
+    '/tech/chantiers/': {
+      id: '/tech/chantiers/'
+      path: '/chantiers'
+      fullPath: '/tech/chantiers/'
+      preLoaderRoute: typeof TechChantiersIndexRouteImport
+      parentRoute: typeof TechRoute
     }
     '/_app/stock/': {
       id: '/_app/stock/'
@@ -421,6 +508,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/clients/'
       preLoaderRoute: typeof AppClientsIndexRouteImport
       parentRoute: typeof AppRoute
+    }
+    '/tech/chantiers/$id': {
+      id: '/tech/chantiers/$id'
+      path: '/chantiers/$id'
+      fullPath: '/tech/chantiers/$id'
+      preLoaderRoute: typeof TechChantiersIdRouteImport
+      parentRoute: typeof TechRoute
     }
     '/_app/interventions/new': {
       id: '/_app/interventions/new'
@@ -540,9 +634,26 @@ const AppRouteChildren: AppRouteChildren = {
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
 
+interface TechRouteChildren {
+  TechCamionRoute: typeof TechCamionRoute
+  TechIndexRoute: typeof TechIndexRoute
+  TechChantiersIdRoute: typeof TechChantiersIdRoute
+  TechChantiersIndexRoute: typeof TechChantiersIndexRoute
+}
+
+const TechRouteChildren: TechRouteChildren = {
+  TechCamionRoute: TechCamionRoute,
+  TechIndexRoute: TechIndexRoute,
+  TechChantiersIdRoute: TechChantiersIdRoute,
+  TechChantiersIndexRoute: TechChantiersIndexRoute,
+}
+
+const TechRouteWithChildren = TechRoute._addFileChildren(TechRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   AppRoute: AppRouteWithChildren,
   AuthRoute: AuthRoute,
+  TechRoute: TechRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

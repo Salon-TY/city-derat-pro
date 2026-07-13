@@ -15,6 +15,19 @@ export const Route = createFileRoute("/auth")({
   component: AuthPage,
 });
 
+// Un technicien atterrit sur son interface dédiée (/tech), tous les autres
+// (owner, bureau) sur le tableau de bord admin (/).
+async function resolveHomeRoute(): Promise<"/tech" | "/"> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return "/";
+  const [{ data: role }, { data: member }] = await Promise.all([
+    supabase.rpc("current_user_role"),
+    supabase.from("team_members").select("poste").eq("user_id", user.id).maybeSingle(),
+  ]);
+  const isTechnician = role !== "owner" && member?.poste === "technicien";
+  return isTechnician ? "/tech" : "/";
+}
+
 function AuthPage() {
   const navigate = useNavigate();
   const [identifier, setIdentifier] = useState("");
@@ -22,8 +35,8 @@ function AuthPage() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      if (data.session) navigate({ to: "/", replace: true });
+    supabase.auth.getSession().then(async ({ data }) => {
+      if (data.session) navigate({ to: await resolveHomeRoute(), replace: true });
     });
   }, [navigate]);
 
@@ -36,7 +49,7 @@ function AuthPage() {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
       toast.success("Connecté");
-      navigate({ to: "/", replace: true });
+      navigate({ to: await resolveHomeRoute(), replace: true });
     } catch {
       toast.error("Identifiant ou mot de passe incorrect, ou compte désactivé.");
     } finally {
