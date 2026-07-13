@@ -304,7 +304,7 @@ function FactureDetail() {
     navigate({ to: "/factures" });
   }
 
-  function exportPDF() {
+  function exportPDF(printOpts?: { printButtonLabel?: string; hint?: string; onPrinted?: () => void }) {
     if (!invoice) return;
     const s = settings;
     const badge = PDF_BADGE[invoice.statut] ?? PDF_BADGE.brouillon;
@@ -474,7 +474,7 @@ function FactureDetail() {
   </div>
 `;
 
-    const ok = printDocument({ title: `Facture N°${invoice.numero}`, bodyHtml, css });
+    const ok = printDocument({ title: `Facture N°${invoice.numero}`, bodyHtml, css, ...printOpts });
     if (!ok) { toast.error("Autorisez les popups pour générer le PDF"); return; }
   }
 
@@ -537,9 +537,10 @@ function FactureDetail() {
 
   function sendEmail() {
     if (!invoice) return;
+    const email = invoice.client?.email ?? "";
+    if (!email) { toast.warning("Aucun email renseigné pour ce client"); return; }
     const s = settings;
     const nomSociete = s?.nom ?? "CITY DERAT";
-    const email = invoice.client?.email ?? "";
     const objet = `Facture N°${invoice.numero} - ${nomSociete}`;
     const corps = [
       "Bonjour,",
@@ -550,9 +551,16 @@ function FactureDetail() {
       nomSociete,
     ].join("\n");
 
-    exportPDF();
-    const mailto = `mailto:${email}?subject=${encodeURIComponent(objet)}&body=${encodeURIComponent(corps)}`;
-    setTimeout(() => { window.location.href = mailto; }, 600);
+    // L'aperçu éditable s'ouvre d'abord ; la messagerie n'ouvre qu'après que
+    // l'utilisateur a cliqué sur "Générer le PDF" (évènement afterprint).
+    exportPDF({
+      printButtonLabel: "Générer le PDF puis ouvrir l'email",
+      hint: "Corrigez le document si besoin, puis générez le PDF. Votre messagerie s'ouvrira ensuite : joignez-y le PDF que vous venez d'enregistrer.",
+      onPrinted: () => {
+        window.location.href = `mailto:${email}?subject=${encodeURIComponent(objet)}&body=${encodeURIComponent(corps)}`;
+        toast.success("Votre messagerie est ouverte. Joignez le PDF que vous venez d'enregistrer, puis envoyez.");
+      },
+    });
   }
 
   if (isLoading) return <div className="text-sm text-muted-foreground py-10 text-center">Chargement…</div>;
@@ -715,7 +723,7 @@ function FactureDetail() {
         </CardContent></Card>
       )}
 
-      <Button onClick={exportPDF} className="w-full bg-accent hover:bg-accent/90 text-accent-foreground">
+      <Button onClick={() => exportPDF()} className="w-full bg-accent hover:bg-accent/90 text-accent-foreground">
         <Download className="mr-2 h-4 w-4" /> Télécharger / Imprimer PDF
       </Button>
 

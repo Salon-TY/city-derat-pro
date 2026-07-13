@@ -387,7 +387,7 @@ function InterventionDetail() {
   // ── PDF ─────────────────────────────────────────────────────────────────────
   // Ne jamais inclure retour_admin (note interne au responsable) dans le PDF.
 
-  function generatePDF() {
+  function generatePDF(printOpts?: { printButtonLabel?: string; hint?: string; onPrinted?: () => void }) {
     if (!intervention) return;
     const s = settings;
     const num = rapportNum;
@@ -490,7 +490,7 @@ function InterventionDetail() {
   </div>
 `;
 
-    const ok = printDocument({ title: `Rapport ${num}`, bodyHtml, css });
+    const ok = printDocument({ title: `Rapport ${num}`, bodyHtml, css, ...printOpts });
     if (!ok) { toast.error("Autorisez les popups pour générer le PDF"); return; }
   }
 
@@ -716,19 +716,18 @@ ${intervention.observations ? `
       s?.telephone ? `Tél : ${s.telephone}` : "",
     ].filter((l) => l !== undefined).join("\n");
 
-    // Open PDF first
-    generatePDF();
-
-    // Then open mail client
-    setTimeout(() => {
-      window.location.href = `mailto:${clientEmail}?subject=${encodeURIComponent(objet)}&body=${encodeURIComponent(corps)}`;
-    }, 700);
-
-    // Propose changing statut
-    setTimeout(async () => {
-      await updateStatut("rapport_transmis");
-      toast.success("Statut mis à jour : Vérifiée");
-    }, 1500);
+    // L'aperçu éditable s'ouvre d'abord ; la messagerie n'ouvre qu'après que
+    // l'utilisateur a cliqué sur "Générer le PDF" (évènement afterprint).
+    generatePDF({
+      printButtonLabel: "Générer le PDF puis ouvrir l'email",
+      hint: "Corrigez le document si besoin, puis générez le PDF. Votre messagerie s'ouvrira ensuite : joignez-y le PDF que vous venez d'enregistrer.",
+      onPrinted: async () => {
+        window.location.href = `mailto:${clientEmail}?subject=${encodeURIComponent(objet)}&body=${encodeURIComponent(corps)}`;
+        toast.success("Votre messagerie est ouverte. Joignez le PDF que vous venez d'enregistrer, puis envoyez.");
+        await updateStatut("rapport_transmis");
+        toast.success("Statut mis à jour : Vérifiée");
+      },
+    });
   }
 
   // ── Render ──────────────────────────────────────────────────────────────────
@@ -1139,7 +1138,7 @@ ${intervention.observations ? `
 
       {/* 5. Actions */}
       <div className="space-y-2">
-        <Button className="w-full bg-accent hover:bg-accent/90 text-accent-foreground" onClick={generatePDF}>
+        <Button className="w-full bg-accent hover:bg-accent/90 text-accent-foreground" onClick={() => generatePDF()}>
           <FileText className="mr-2 h-4 w-4" /> Générer PDF rapport officiel
         </Button>
 

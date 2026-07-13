@@ -112,7 +112,7 @@ function ContractDetail() {
     toast.success("Signature supprimée");
   }
 
-  function generatePDF() {
+  function generatePDF(printOpts?: { printButtonLabel?: string; hint?: string; onPrinted?: () => void }) {
     if (!contract) return;
     const s = settings;
     const client = contract.client;
@@ -198,7 +198,7 @@ function ContractDetail() {
   </div>
 `;
 
-    const ok = printDocument({ title: `Contrat ${contract.numero ?? ""}`, bodyHtml, css });
+    const ok = printDocument({ title: `Contrat ${contract.numero ?? ""}`, bodyHtml, css, ...printOpts });
     if (!ok) { toast.error("Autorisez les popups pour générer le PDF"); return; }
   }
 
@@ -228,10 +228,16 @@ function ContractDetail() {
       s?.telephone ? `Tél : ${s.telephone}` : "",
     ].filter((l) => l !== undefined).join("\n");
 
-    generatePDF();
-    setTimeout(() => {
-      window.location.href = `mailto:${clientEmail}?subject=${encodeURIComponent(objet)}&body=${encodeURIComponent(corps)}`;
-    }, 700);
+    // L'aperçu éditable s'ouvre d'abord ; la messagerie n'ouvre qu'après que
+    // l'utilisateur a cliqué sur "Générer le PDF" (évènement afterprint).
+    generatePDF({
+      printButtonLabel: "Générer le PDF puis ouvrir l'email",
+      hint: "Corrigez le document si besoin, puis générez le PDF. Votre messagerie s'ouvrira ensuite : joignez-y le PDF que vous venez d'enregistrer.",
+      onPrinted: () => {
+        window.location.href = `mailto:${clientEmail}?subject=${encodeURIComponent(objet)}&body=${encodeURIComponent(corps)}`;
+        toast.success("Votre messagerie est ouverte. Joignez le PDF que vous venez d'enregistrer, puis envoyez.");
+      },
+    });
   }
 
   if (isLoading) return <div className="text-sm text-muted-foreground py-10 text-center">Chargement…</div>;
@@ -381,7 +387,7 @@ function ContractDetail() {
       </Card>
 
       <div className="space-y-2">
-        <Button className="w-full bg-accent hover:bg-accent/90 text-accent-foreground" onClick={generatePDF}>
+        <Button className="w-full bg-accent hover:bg-accent/90 text-accent-foreground" onClick={() => generatePDF()}>
           <FileText className="mr-2 h-4 w-4" /> Générer le PDF
         </Button>
 

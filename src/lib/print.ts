@@ -10,6 +10,12 @@ export interface PrintOptions {
   bodyHtml: string;
   /** CSS spécifique au document. */
   css?: string;
+  /** Libellé du bouton de la barre d'édition (défaut : "Générer le PDF"). */
+  printButtonLabel?: string;
+  /** Texte d'aide affiché dans la barre d'édition. */
+  hint?: string;
+  /** Appelé après que l'utilisateur a validé/fermé la boîte d'impression. */
+  onPrinted?: () => void;
 }
 
 const PAGE_SHELL_CSS = `
@@ -50,7 +56,11 @@ const PAGE_SHELL_CSS = `
 /**
  * Ouvre un aperçu éditable du document. Retourne false si la popup est bloquée.
  */
-export function printDocument({ title, bodyHtml, css = "" }: PrintOptions): boolean {
+export function printDocument({
+  title, bodyHtml, css = "", printButtonLabel = "Générer le PDF",
+  hint = "Mode édition — cliquez dans le texte pour corriger. Les modifications ne sont pas enregistrées.",
+  onPrinted,
+}: PrintOptions): boolean {
   const win = window.open("", "_blank");
   if (!win) return false;
 
@@ -63,13 +73,14 @@ export function printDocument({ title, bodyHtml, css = "" }: PrintOptions): bool
 </head>
 <body>
 <div class="pdf-edit-toolbar">
-  <span>Mode édition — cliquez dans le texte pour corriger. Les modifications ne sont pas enregistrées.</span>
-  <button type="button" onclick="window.print()">Générer le PDF</button>
+  <span>${hint}</span>
+  <button type="button" onclick="window.print()">${printButtonLabel}</button>
 </div>
 <div class="pdf-editable" contenteditable="true" spellcheck="false">${bodyHtml}</div>
 </body>
 </html>`);
   win.document.close();
   win.focus();
+  if (onPrinted) win.addEventListener("afterprint", () => onPrinted(), { once: true });
   return true;
 }
