@@ -2,7 +2,7 @@ import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import {
   LayoutDashboard, Users, ClipboardList, FileText, FileSignature,
   Settings, LogOut, Bug, Plus, Package, Search, X, TrendingUp, FileCheck,
-  MoreHorizontal, BarChart2, UserCog
+  MoreHorizontal, BarChart2, UserCog, PackagePlus
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
@@ -10,7 +10,7 @@ import { toast } from "sonner";
 import { useState, useEffect, useRef } from "react";
 import { db } from "@/lib/db";
 import { formatEUR, formatDateFR, TYPES_INTERVENTION } from "@/lib/schemas";
-import { useClients, useSettings, useMyAccess, useCurrentRole, useMyPoste } from "@/lib/queries";
+import { useClients, useSettings, useMyAccess, useCurrentRole, useMyPoste, useMyTodoCount } from "@/lib/queries";
 import type { PermissionKey } from "@/lib/permissions";
 
 const mainNavItems: { to: string; label: string; icon: typeof LayoutDashboard; exact?: boolean; perm?: PermissionKey }[] = [
@@ -25,6 +25,7 @@ const moreNavItems: { to: string; label: string; icon: typeof LayoutDashboard; p
   { to: "/devis", label: "Devis", icon: FileCheck, perm: "devis" },
   { to: "/tresorerie", label: "Trésorerie", icon: TrendingUp, perm: "tresorerie" },
   { to: "/contrats", label: "Contrats", icon: FileSignature, perm: "contrats" },
+  { to: "/reappro", label: "Réappro", icon: PackagePlus, perm: "reappro" },
   { to: "/stats", label: "Statistiques", icon: BarChart2, perm: "stats" },
   { to: "/parametres", label: "Paramètres", icon: Settings, perm: "parametres" },
 ];
@@ -365,6 +366,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [moreOpen, setMoreOpen] = useState(false);
   const { data: settings } = useSettings();
   const { can, loading: accessLoading } = useMyAccess();
+  const { data: role } = useCurrentRole();
+  const { data: myPoste } = useMyPoste();
+  const isTechnician = role !== undefined && role !== "owner" && myPoste === "technicien";
+  const { data: myTodoCount = 0 } = useMyTodoCount();
 
   // Tant que l'accès n'est pas résolu, on masque les onglets à permission
   // (Terrain reste toujours visible) pour éviter un flash "tout est affiché".
@@ -527,8 +532,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   active ? "text-accent nav-active" : "text-muted-foreground hover:text-foreground"
                 }`}
               >
-                <div className={`grid h-8 w-8 place-items-center rounded-xl transition-all duration-200 ${active ? "bg-accent/12 scale-105" : ""}`}>
+                <div className={`relative grid h-8 w-8 place-items-center rounded-xl transition-all duration-200 ${active ? "bg-accent/12 scale-105" : ""}`}>
                   <Icon className={`h-[18px] w-[18px] transition-all ${active ? "stroke-[2.5]" : "stroke-[1.8]"}`} />
+                  {item.to === "/interventions" && isTechnician && myTodoCount > 0 && (
+                    <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[9px] font-bold text-destructive-foreground">
+                      {myTodoCount}
+                    </span>
+                  )}
                 </div>
                 <span className={active ? "font-bold" : ""}>{item.label}</span>
               </Link>

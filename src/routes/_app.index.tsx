@@ -1,11 +1,11 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useDashboardStats, useSettings, useRelances, useCurrentRole, useMyPoste, useMyAccess } from "@/lib/queries";
+import { useDashboardStats, useSettings, useRelances, useCurrentRole, useMyPoste, useMyAccess, useMyTodoCount, usePendingStockRequestsCount } from "@/lib/queries";
 import { formatEUR, formatDateFR } from "@/lib/schemas";
 import {
   ClipboardList, Euro, AlertCircle, Plus, UserPlus, FileText,
-  TrendingUp, TrendingDown, Minus, Phone, AlertTriangle, Package, MapPin, FileCheck, Bell, ClipboardCheck
+  TrendingUp, TrendingDown, Minus, Phone, AlertTriangle, Package, MapPin, FileCheck, Bell, ClipboardCheck, PackagePlus,
 } from "lucide-react";
 import { useQuotes } from "@/lib/queries";
 import { useMemo } from "react";
@@ -29,6 +29,8 @@ function Dashboard() {
   const { data: myPoste } = useMyPoste();
   const { can, loading: accessLoading } = useMyAccess();
   const isTechnician = role !== undefined && role !== "owner" && myPoste === "technicien";
+  const { data: myTodoCount = 0 } = useMyTodoCount();
+  const { data: pendingReapproCount = 0 } = usePendingStockRequestsCount();
   const navigate = useNavigate();
   const devisEnAttente = devis.filter((d) => d.statut === "brouillon" || d.statut === "envoye").length;
 
@@ -58,6 +60,20 @@ function Dashboard() {
         <h1 className="text-2xl font-bold tracking-tight">Tableau de bord</h1>
         <p className="text-sm text-muted-foreground">Aperçu de votre activité.</p>
       </div>
+
+      {/* Chantiers à faire — technicien uniquement */}
+      {isTechnician && myTodoCount > 0 && (
+        <Link to="/interventions" className="block">
+          <Card className="border-primary/40 bg-primary/5 hover:border-primary/60 transition-colors">
+            <CardContent className="p-3 flex items-center gap-2">
+              <ClipboardList className="h-4 w-4 text-primary shrink-0" />
+              <span className="text-sm font-semibold text-primary">
+                {myTodoCount} chantier{myTodoCount > 1 ? "s" : ""} à faire
+              </span>
+            </CardContent>
+          </Card>
+        </Link>
+      )}
 
       <div className="grid grid-cols-2 gap-2 md:grid-cols-1 md:gap-3">
 
@@ -331,6 +347,20 @@ function Dashboard() {
                   ))}
                 </ul>
               </div>
+            </CardContent>
+          </Card>
+        </Link>
+      )}
+
+      {/* Demandes de réappro en attente */}
+      {!isLoading && !accessLoading && can("reappro") && pendingReapproCount > 0 && (
+        <Link to="/reappro" className="block">
+          <Card className="border-orange-300 bg-orange-50 dark:border-orange-900/50 dark:bg-orange-950/20 hover:border-orange-400 transition-colors">
+            <CardContent className="p-3 flex items-center gap-2">
+              <PackagePlus className="h-4 w-4 text-orange-500 shrink-0" />
+              <span className="text-sm font-semibold text-orange-700 dark:text-orange-400">
+                {pendingReapproCount} demande{pendingReapproCount > 1 ? "s" : ""} de réappro en attente
+              </span>
             </CardContent>
           </Card>
         </Link>

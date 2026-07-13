@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -11,12 +11,14 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, ArrowLeftRight, AlertTriangle, Package, Trash2, Pencil, Search, Truck, Warehouse, History, Filter, X } from "lucide-react";
+import { Plus, ArrowLeftRight, AlertTriangle, Package, Trash2, Pencil, Search, Truck, Warehouse, History, Filter, X, PackagePlus, Clock, CheckCircle2, XCircle } from "lucide-react";
 import {
-  useStockProducts, useStockLevels, useMyVanStock, useAssignableMembers, useCurrentRole,
+  useStockProducts, useStockLevels, useMyVanStock, useAssignableMembers, useCurrentRole, useMyPoste,
   useStockMovements, useMyVanMovements, logStockMovement, resolveTechnicianName,
+  useMyStockRequests,
   getGarageLevel, getVanLevel,
   type StockProduct, type StockLevel, type AssignableMember, type StockMovement, type StockMovementType,
+  type StockRequest, type StockRequestStatut,
 } from "@/lib/queries";
 import { stockProductSchema, type StockProductForm, UNITES_STOCK, UNITES_VOLUME, UNITES_UNITE, formatEUR, formatDateFR } from "@/lib/schemas";
 import { supabase } from "@/integrations/supabase/client";
@@ -103,21 +105,47 @@ function MovementRow({ m, members, showWho = true }: { m: StockMovement; members
 }
 
 function StockPage() {
-  const { data: role, isLoading } = useCurrentRole();
-  if (isLoading) return <div className="py-10 text-center text-sm text-muted-foreground">Chargement…</div>;
-  return role === "owner" ? <OwnerStockView /> : <TechnicianVanView />;
+  const { data: role, isLoading: roleLoading } = useCurrentRole();
+  const { data: poste, isLoading: posteLoading } = useMyPoste();
+  if (roleLoading || posteLoading) return <div className="py-10 text-center text-sm text-muted-foreground">Chargement…</div>;
+  // Le personnel de bureau n'a pas de camion : il voit la même vue d'ensemble
+  // que le patron. Seul un technicien voit "Mon camion".
+  return role === "owner" || poste === "bureau" ? <OwnerStockView /> : <TechnicianVanView />;
 }
+
+const REQUEST_STATUT_LABELS: Record<StockRequestStatut, string> = {
+  en_attente: "En attente",
+  servie: "Servie",
+  refusee: "Refusée",
+};
+
+const REQUEST_STATUT_ICONS: Record<StockRequestStatut, React.ReactNode> = {
+  en_attente: <Clock className="h-3 w-3" />,
+  servie: <CheckCircle2 className="h-3 w-3" />,
+  refusee: <XCircle className="h-3 w-3" />,
+};
+
+const REQUEST_STATUT_COLORS: Record<StockRequestStatut, string> = {
+  en_attente: "bg-accent/15 text-accent",
+  servie: "bg-primary/15 text-primary",
+  refusee: "bg-destructive/15 text-destructive",
+};
 
 // ─── Vue technicien : "Mon camion" ─────────────────────────────────────────────
 
-type TechTab = "stock" | "history";
+type TechTab = "stock" | "history" | "reappro";
 
 function TechnicianVanView() {
   const [tab, setTab] = useState<TechTab>("stock");
   const { data: levels = [], isLoading } = useMyVanStock();
   const { data: movements = [], isLoading: movementsLoading } = useMyVanMovements();
   const { data: members = [] } = useAssignableMembers();
+  const { data: myRequests = [], isLoading: requestsLoading } = useMyStockRequests();
+  const { data: products = [] } = useStockProducts();
   const [q, setQ] = useState("");
+  const [requestOpen, setRequestOpen] = useState(false);
+  const [requestProductId, setRequestProductId] = useState<string | undefined>(undefined);
+  const qc = useQueryClient();
 
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase();
@@ -126,16 +154,46 @@ function TechnicianVanView() {
       .sort((a, b) => (a.product?.nom ?? "").localeCompare(b.product?.nom ?? ""));
   }, [levels, q]);
 
+  const pendingCount = myRequests.filter((r) => r.statut === "en_attente").length;
+
+  function openRequestDialog(productId?: string) {
+    setRequestProductId(productId);
+    setRequestOpen(true);
+  }
+
+  async function handleRequestReappro(productId: string, quantite: number, note: string) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const { error } = await db.from("stock_requests").insert({
+      product_id: productId,
+      technicien_id: user.id,
+      quantite,
+      note: note || null,
+      user_id: user.id,
+    });
+    if (error) throw error;
+    qc.invalidateQueries({ queryKey: ["my_stock_requests"] });
+    qc.invalidateQueries({ queryKey: ["stock_requests_pending_count"] });
+    qc.invalidateQueries({ queryKey: ["dashboard"] });
+    toast.success("Demande de réappro envoyée");
+  }
+
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <Truck className="h-5 w-5 text-primary" />
-        <h1 className="text-2xl font-bold tracking-tight">Mon camion</h1>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <Truck className="h-5 w-5 text-primary" />
+          <h1 className="text-2xl font-bold tracking-tight">Mon camion</h1>
+        </div>
+        <Button size="sm" onClick={() => openRequestDialog()}>
+          <PackagePlus className="mr-1.5 h-4 w-4" /> Réappro
+        </Button>
       </div>
 
       <div className="flex rounded-xl bg-muted p-1 gap-1">
         {([
           { v: "stock" as TechTab, label: "Mon camion" },
+          { v: "reappro" as TechTab, label: `Réappro${pendingCount > 0 ? ` (${pendingCount})` : ""}` },
           { v: "history" as TechTab, label: "Historique" },
         ]).map(({ v, label }) => (
           <button
@@ -151,7 +209,7 @@ function TechnicianVanView() {
         ))}
       </div>
 
-      {tab === "stock" ? (
+      {tab === "stock" && (
         <>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -187,6 +245,9 @@ function TechnicianVanView() {
                             {l.product && <span className="opacity-50"> · Seuil : {l.product.seuil_alerte}</span>}
                           </div>
                         </div>
+                        <Button size="sm" variant="outline" className="shrink-0 h-8 text-xs" onClick={() => openRequestDialog(l.product_id)}>
+                          <PackagePlus className="mr-1 h-3.5 w-3.5" /> Demander
+                        </Button>
                       </div>
                     </CardContent>
                   </Card>
@@ -195,7 +256,37 @@ function TechnicianVanView() {
             </div>
           )}
         </>
-      ) : (
+      )}
+
+      {tab === "reappro" && (
+        requestsLoading ? (
+          <div className="py-10 text-center text-sm text-muted-foreground">Chargement…</div>
+        ) : myRequests.length === 0 ? (
+          <Card><CardContent className="py-10 text-center text-sm text-muted-foreground">
+            <PackagePlus className="mx-auto mb-2 h-8 w-8 opacity-50" />
+            Aucune demande de réappro pour le moment.
+          </CardContent></Card>
+        ) : (
+          <div className="space-y-2">
+            {myRequests.map((r) => (
+              <Card key={r.id}>
+                <CardContent className="p-3 space-y-1">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-sm font-medium">{r.product?.nom ?? "Produit"} — {r.quantite} {r.product?.unite}</p>
+                    <span className={cn("shrink-0 flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase", REQUEST_STATUT_COLORS[r.statut])}>
+                      {REQUEST_STATUT_ICONS[r.statut]} {REQUEST_STATUT_LABELS[r.statut]}
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-muted-foreground">{formatDateTime(r.created_at)}</div>
+                  {r.note && <p className="text-xs text-muted-foreground italic">{r.note}</p>}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )
+      )}
+
+      {tab === "history" && (
         movementsLoading ? (
           <div className="py-10 text-center text-sm text-muted-foreground">Chargement…</div>
         ) : movements.length === 0 ? (
@@ -209,7 +300,79 @@ function TechnicianVanView() {
           </div>
         )
       )}
+
+      <RequestReapproDialog
+        open={requestOpen}
+        onOpenChange={setRequestOpen}
+        products={products}
+        levels={levels}
+        defaultProductId={requestProductId}
+        onSubmit={handleRequestReappro}
+      />
     </div>
+  );
+}
+
+// ─── Dialog : demande de réappro (technicien) ──────────────────────────────────
+
+function RequestReapproDialog({ open, onOpenChange, products, levels, defaultProductId, onSubmit }: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  products: StockProduct[];
+  levels: StockLevel[];
+  defaultProductId?: string;
+  onSubmit: (productId: string, qty: number, note: string) => Promise<void>;
+}) {
+  const [productId, setProductId] = useState("");
+  const [qty, setQty] = useState("");
+  const [note, setNote] = useState("");
+  const [saving, setSaving] = useState(false);
+  const product = products.find((p) => p.id === productId);
+  const currentQty = productId ? levels.find((l) => l.product_id === productId)?.quantite ?? 0 : null;
+
+  useEffect(() => {
+    if (open) { setProductId(defaultProductId ?? ""); setQty(""); setNote(""); }
+  }, [open, defaultProductId]);
+
+  async function handleSave() {
+    const n = Number(qty.replace(",", "."));
+    if (!productId) { toast.error("Sélectionnez un produit"); return; }
+    if (!Number.isFinite(n) || n <= 0) { toast.error("Quantité invalide"); return; }
+    setSaving(true);
+    try {
+      await onSubmit(productId, n, note.trim());
+      onOpenChange(false);
+    } catch (e: any) {
+      toast.error(e.message ?? "Erreur");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader><DialogTitle>Demander du réapprovisionnement</DialogTitle></DialogHeader>
+        <div className="space-y-3">
+          <Field label="Produit">
+            <Select value={productId} onValueChange={setProductId}>
+              <SelectTrigger><SelectValue placeholder="Sélectionner un produit…" /></SelectTrigger>
+              <SelectContent>{products.map((p) => <SelectItem key={p.id} value={p.id}>{p.nom}</SelectItem>)}</SelectContent>
+            </Select>
+            {currentQty !== null && <p className="text-[11px] text-muted-foreground">Sur mon camion actuellement : {currentQty} {product?.unite}</p>}
+          </Field>
+          <Field label={`Quantité souhaitée${product ? ` (${product.unite})` : ""}`}>
+            <Input type="number" step="0.001" min="0" value={qty} onChange={(e) => setQty(e.target.value)} />
+          </Field>
+          <Field label="Note (optionnel)">
+            <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Ex. urgent, plus qu'une boîte…" />
+          </Field>
+          <Button className="w-full" disabled={saving} onClick={handleSave}>
+            {saving ? "Envoi…" : "Envoyer la demande"}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 

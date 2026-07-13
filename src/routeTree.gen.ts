@@ -17,6 +17,7 @@ import { Route as AppStatsRouteImport } from './routes/_app.stats'
 import { Route as AppPlanningRouteImport } from './routes/_app.planning'
 import { Route as AppParametresRouteImport } from './routes/_app.parametres'
 import { Route as AppStockIndexRouteImport } from './routes/_app.stock.index'
+import { Route as AppReapproIndexRouteImport } from './routes/_app.reappro.index'
 import { Route as AppInterventionsIndexRouteImport } from './routes/_app.interventions.index'
 import { Route as AppFacturesIndexRouteImport } from './routes/_app.factures.index'
 import { Route as AppEquipeIndexRouteImport } from './routes/_app.equipe.index'
@@ -70,6 +71,11 @@ const AppParametresRoute = AppParametresRouteImport.update({
 const AppStockIndexRoute = AppStockIndexRouteImport.update({
   id: '/stock/',
   path: '/stock/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppReapproIndexRoute = AppReapproIndexRouteImport.update({
+  id: '/reappro/',
+  path: '/reappro/',
   getParentRoute: () => AppRoute,
 } as any)
 const AppInterventionsIndexRoute = AppInterventionsIndexRouteImport.update({
@@ -170,6 +176,7 @@ export interface FileRoutesByFullPath {
   '/equipe/': typeof AppEquipeIndexRoute
   '/factures/': typeof AppFacturesIndexRoute
   '/interventions/': typeof AppInterventionsIndexRoute
+  '/reappro/': typeof AppReapproIndexRoute
   '/stock/': typeof AppStockIndexRoute
 }
 export interface FileRoutesByTo {
@@ -194,6 +201,7 @@ export interface FileRoutesByTo {
   '/equipe': typeof AppEquipeIndexRoute
   '/factures': typeof AppFacturesIndexRoute
   '/interventions': typeof AppInterventionsIndexRoute
+  '/reappro': typeof AppReapproIndexRoute
   '/stock': typeof AppStockIndexRoute
 }
 export interface FileRoutesById {
@@ -220,6 +228,7 @@ export interface FileRoutesById {
   '/_app/equipe/': typeof AppEquipeIndexRoute
   '/_app/factures/': typeof AppFacturesIndexRoute
   '/_app/interventions/': typeof AppInterventionsIndexRoute
+  '/_app/reappro/': typeof AppReapproIndexRoute
   '/_app/stock/': typeof AppStockIndexRoute
 }
 export interface FileRouteTypes {
@@ -246,6 +255,7 @@ export interface FileRouteTypes {
     | '/equipe/'
     | '/factures/'
     | '/interventions/'
+    | '/reappro/'
     | '/stock/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -270,6 +280,7 @@ export interface FileRouteTypes {
     | '/equipe'
     | '/factures'
     | '/interventions'
+    | '/reappro'
     | '/stock'
   id:
     | '__root__'
@@ -295,6 +306,7 @@ export interface FileRouteTypes {
     | '/_app/equipe/'
     | '/_app/factures/'
     | '/_app/interventions/'
+    | '/_app/reappro/'
     | '/_app/stock/'
   fileRoutesById: FileRoutesById
 }
@@ -359,6 +371,13 @@ declare module '@tanstack/react-router' {
       path: '/stock'
       fullPath: '/stock/'
       preLoaderRoute: typeof AppStockIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/reappro/': {
+      id: '/_app/reappro/'
+      path: '/reappro'
+      fullPath: '/reappro/'
+      preLoaderRoute: typeof AppReapproIndexRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/interventions/': {
@@ -490,6 +509,7 @@ interface AppRouteChildren {
   AppEquipeIndexRoute: typeof AppEquipeIndexRoute
   AppFacturesIndexRoute: typeof AppFacturesIndexRoute
   AppInterventionsIndexRoute: typeof AppInterventionsIndexRoute
+  AppReapproIndexRoute: typeof AppReapproIndexRoute
   AppStockIndexRoute: typeof AppStockIndexRoute
 }
 
@@ -514,6 +534,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppEquipeIndexRoute: AppEquipeIndexRoute,
   AppFacturesIndexRoute: AppFacturesIndexRoute,
   AppInterventionsIndexRoute: AppInterventionsIndexRoute,
+  AppReapproIndexRoute: AppReapproIndexRoute,
   AppStockIndexRoute: AppStockIndexRoute,
 }
 
