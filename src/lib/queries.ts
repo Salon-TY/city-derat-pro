@@ -636,6 +636,48 @@ export async function syncContractPassageCount(
   await db.from("contracts").update({ passages_realises: next }).eq("id", contractId);
 }
 
+export type PassageAProgrammer = Contract & {
+  /** Interventions déjà créées pour ce contrat mais pas encore réalisées. */
+  planifiees: number;
+  /** nb_passages_inclus − passages_realises − planifiees. */
+  restant: number;
+};
+
+// File des contrats actifs auxquels il reste des passages à programmer.
+// Ne devine jamais de date : compte simplement ce qui reste (passages déjà
+// réalisés + déjà planifiés mais pas encore faits) pour éviter de sur- ou
+// sous-planifier. Triée par échéance la plus proche : un contrat qui expire
+// bientôt est plus urgent à programmer qu'un contrat qui a encore le temps.
+export function usePassagesAProgrammer() {
+  return useQuery({
+    queryKey: ["passages_a_programmer"],
+    queryFn: async (): Promise<PassageAProgrammer[]> => {
+      const today = localDate(new Date());
+      const [contractsRes, interventionsRes] = await Promise.all([
+        db.from("contracts").select("*, client:clients(*)").eq("statut", "actif").gte("date_fin", today),
+        db.from("interventions").select("contract_id, statut").in("statut", ["planifiee", "en_cours"]).not("contract_id", "is", null),
+      ]);
+      if (contractsRes.error) throw contractsRes.error;
+      if (interventionsRes.error) throw interventionsRes.error;
+
+      const planCounts = new Map<string, number>();
+      for (const i of interventionsRes.data ?? []) {
+        if (!i.contract_id) continue;
+        planCounts.set(i.contract_id, (planCounts.get(i.contract_id) ?? 0) + 1);
+      }
+
+      const result: PassageAProgrammer[] = [];
+      for (const c of contractsRes.data ?? []) {
+        const planifiees = planCounts.get(c.id) ?? 0;
+        const restant = c.nb_passages_inclus - c.passages_realises - planifiees;
+        if (restant > 0) result.push({ ...c, planifiees, restant });
+      }
+      result.sort((a, b) => a.date_fin.localeCompare(b.date_fin));
+      return result;
+    },
+  });
+}
+
 export function useInvoices() {
   return useQuery({
     queryKey: ["invoices"],

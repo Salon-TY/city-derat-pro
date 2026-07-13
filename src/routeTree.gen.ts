@@ -22,6 +22,7 @@ import { Route as AppParametresRouteImport } from './routes/_app.parametres'
 import { Route as TechChantiersIndexRouteImport } from './routes/tech.chantiers.index'
 import { Route as AppStockIndexRouteImport } from './routes/_app.stock.index'
 import { Route as AppReapproIndexRouteImport } from './routes/_app.reappro.index'
+import { Route as AppProgrammationIndexRouteImport } from './routes/_app.programmation.index'
 import { Route as AppInterventionsIndexRouteImport } from './routes/_app.interventions.index'
 import { Route as AppFacturesIndexRouteImport } from './routes/_app.factures.index'
 import { Route as AppEquipeIndexRouteImport } from './routes/_app.equipe.index'
@@ -101,6 +102,11 @@ const AppStockIndexRoute = AppStockIndexRouteImport.update({
 const AppReapproIndexRoute = AppReapproIndexRouteImport.update({
   id: '/reappro/',
   path: '/reappro/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppProgrammationIndexRoute = AppProgrammationIndexRouteImport.update({
+  id: '/programmation/',
+  path: '/programmation/',
   getParentRoute: () => AppRoute,
 } as any)
 const AppInterventionsIndexRoute = AppInterventionsIndexRouteImport.update({
@@ -210,6 +216,7 @@ export interface FileRoutesByFullPath {
   '/equipe/': typeof AppEquipeIndexRoute
   '/factures/': typeof AppFacturesIndexRoute
   '/interventions/': typeof AppInterventionsIndexRoute
+  '/programmation/': typeof AppProgrammationIndexRoute
   '/reappro/': typeof AppReapproIndexRoute
   '/stock/': typeof AppStockIndexRoute
   '/tech/chantiers/': typeof TechChantiersIndexRoute
@@ -239,6 +246,7 @@ export interface FileRoutesByTo {
   '/equipe': typeof AppEquipeIndexRoute
   '/factures': typeof AppFacturesIndexRoute
   '/interventions': typeof AppInterventionsIndexRoute
+  '/programmation': typeof AppProgrammationIndexRoute
   '/reappro': typeof AppReapproIndexRoute
   '/stock': typeof AppStockIndexRoute
   '/tech/chantiers': typeof TechChantiersIndexRoute
@@ -271,6 +279,7 @@ export interface FileRoutesById {
   '/_app/equipe/': typeof AppEquipeIndexRoute
   '/_app/factures/': typeof AppFacturesIndexRoute
   '/_app/interventions/': typeof AppInterventionsIndexRoute
+  '/_app/programmation/': typeof AppProgrammationIndexRoute
   '/_app/reappro/': typeof AppReapproIndexRoute
   '/_app/stock/': typeof AppStockIndexRoute
   '/tech/chantiers/': typeof TechChantiersIndexRoute
@@ -303,6 +312,7 @@ export interface FileRouteTypes {
     | '/equipe/'
     | '/factures/'
     | '/interventions/'
+    | '/programmation/'
     | '/reappro/'
     | '/stock/'
     | '/tech/chantiers/'
@@ -332,6 +342,7 @@ export interface FileRouteTypes {
     | '/equipe'
     | '/factures'
     | '/interventions'
+    | '/programmation'
     | '/reappro'
     | '/stock'
     | '/tech/chantiers'
@@ -363,6 +374,7 @@ export interface FileRouteTypes {
     | '/_app/equipe/'
     | '/_app/factures/'
     | '/_app/interventions/'
+    | '/_app/programmation/'
     | '/_app/reappro/'
     | '/_app/stock/'
     | '/tech/chantiers/'
@@ -465,6 +477,13 @@ declare module '@tanstack/react-router' {
       path: '/reappro'
       fullPath: '/reappro/'
       preLoaderRoute: typeof AppReapproIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/programmation/': {
+      id: '/_app/programmation/'
+      path: '/programmation'
+      fullPath: '/programmation/'
+      preLoaderRoute: typeof AppProgrammationIndexRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/interventions/': {
@@ -603,6 +622,7 @@ interface AppRouteChildren {
   AppEquipeIndexRoute: typeof AppEquipeIndexRoute
   AppFacturesIndexRoute: typeof AppFacturesIndexRoute
   AppInterventionsIndexRoute: typeof AppInterventionsIndexRoute
+  AppProgrammationIndexRoute: typeof AppProgrammationIndexRoute
   AppReapproIndexRoute: typeof AppReapproIndexRoute
   AppStockIndexRoute: typeof AppStockIndexRoute
 }
@@ -628,6 +648,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppEquipeIndexRoute: AppEquipeIndexRoute,
   AppFacturesIndexRoute: AppFacturesIndexRoute,
   AppInterventionsIndexRoute: AppInterventionsIndexRoute,
+  AppProgrammationIndexRoute: AppProgrammationIndexRoute,
   AppReapproIndexRoute: AppReapproIndexRoute,
   AppStockIndexRoute: AppStockIndexRoute,
 }

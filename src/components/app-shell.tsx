@@ -2,7 +2,7 @@ import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import {
   LayoutDashboard, Users, ClipboardList, FileText, FileSignature,
   Settings, LogOut, Bug, Plus, Package, Search, X, TrendingUp, FileCheck,
-  MoreHorizontal, BarChart2, UserCog, PackagePlus
+  MoreHorizontal, BarChart2, UserCog, PackagePlus, CalendarClock
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
@@ -26,6 +26,7 @@ const moreNavItems: { to: string; label: string; icon: typeof LayoutDashboard; p
   { to: "/tresorerie", label: "Trésorerie", icon: TrendingUp, perm: "tresorerie" },
   { to: "/contrats", label: "Contrats", icon: FileSignature, perm: "contrats" },
   { to: "/reappro", label: "Réappro", icon: PackagePlus, perm: "reappro" },
+  { to: "/programmation", label: "À programmer", icon: CalendarClock, perm: "programmation" },
   { to: "/stats", label: "Statistiques", icon: BarChart2, perm: "stats" },
   { to: "/parametres", label: "Paramètres", icon: Settings, perm: "parametres" },
 ];

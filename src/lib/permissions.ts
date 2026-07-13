@@ -1,6 +1,6 @@
 export type PermissionKey =
   | "accueil" | "clients" | "devis" | "contrats" | "factures"
-  | "stock" | "reappro" | "tresorerie" | "stats" | "parametres" | "export";
+  | "stock" | "reappro" | "programmation" | "tresorerie" | "stats" | "parametres" | "export";
 
 // Ordre d'affichage + libellés dans l'éditeur d'autorisations
 export const PERMISSION_LABELS: Record<PermissionKey, string> = {
@@ -11,6 +11,7 @@ export const PERMISSION_LABELS: Record<PermissionKey, string> = {
   factures:   "Factures",
   stock:      "Stock",
   reappro:    "Demandes de réappro",
+  programmation: "Passages à programmer",
   tresorerie: "Trésorerie",
   stats:      "Statistiques",
   parametres: "Paramètres",
@@ -22,7 +23,7 @@ export const ALL_PERMISSION_KEYS = Object.keys(PERMISSION_LABELS) as PermissionK
 // Modèle rapide (point de départ ; le patron ajuste ensuite les cases).
 // Les techniciens n'ont pas de preset : ils utilisent l'interface dédiée
 // /tech/* et ces autorisations ne s'appliquent qu'au poste bureau.
-export const PRESET_BUREAU: PermissionKey[] = ["accueil", "clients", "devis", "contrats", "factures", "reappro"];
+export const PRESET_BUREAU: PermissionKey[] = ["accueil", "clients", "devis", "contrats", "factures", "reappro", "programmation"];
 
 export function presetToPermissions(keys: PermissionKey[]): Record<string, boolean> {
   return Object.fromEntries(ALL_PERMISSION_KEYS.map((k) => [k, keys.includes(k)]));
