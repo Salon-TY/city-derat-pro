@@ -1,17 +1,18 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useIntervention, useSettings, useProduitsBiocides, useContracts, useAssignableMembers, resolveTechnicianName, useCurrentRole, useMyPoste, useSiteHistory, type AssignableMember, type Intervention } from "@/lib/queries";
+import { useIntervention, useSettings, useProduitsBiocides, useContracts, useAssignableMembers, resolveTechnicianName, useCurrentRole, useMyPoste, useSiteHistory, logStockMovement, type AssignableMember, type Intervention } from "@/lib/queries";
 import { formatDateFR, STATUTS_INTERVENTION } from "@/lib/schemas";
+import type { InterventionForm as IFType } from "@/lib/schemas";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
   ArrowLeft, Receipt, Copy, FileText, MapPin, Calendar, Bug, FlaskConical,
   Package, ClipboardList, CalendarClock, Trash2, Camera, X, ChevronLeft,
   ChevronRight, Mail, PenLine, CheckCircle, AlertTriangle, Phone, ShieldCheck,
-  PlayCircle, Undo2, History, ChevronDown, Timer,
+  PlayCircle, Undo2, History, ChevronDown, Timer, ClipboardEdit, MessageSquareWarning, Pencil,
 } from "lucide-react";
 import { useState, useCallback, useEffect } from "react";
 import { uploadInterventionPhotos, deleteInterventionPhoto, uploadSignature, deleteSignature } from "@/lib/photos";
-import type { PhotoFile } from "@/components/intervention-form";
+import { InterventionForm, type PhotoFile, type StockUsageItem } from "@/components/intervention-form";
 import { SignatureCanvas } from "@/components/signature-canvas";
 import { TechnicianSelect } from "@/components/technician-select";
 import { printDocument } from "@/lib/print";
@@ -27,6 +28,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Textarea } from "@/components/ui/textarea";
 
 export const Route = createFileRoute("/_app/interventions/$id")({
   head: () => ({ meta: [{ title: "Rapport d'intervention — CITY DERAT" }] }),
@@ -78,6 +80,15 @@ function toDatetimeLocal(iso: string | null | undefined): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+// Récupère le niveau de stock d'un produit à l'emplacement voulu (camion du
+// technicien si assigné, sinon garage). Retourne null si aucune ligne n'existe.
+async function fetchStockLevel(productId: string, technicienId: string | null) {
+  let q = db.from("stock_levels").select("id, quantite").eq("product_id", productId);
+  q = technicienId ? q.eq("technicien_id", technicienId) : q.is("technicien_id", null);
+  const { data } = await q.maybeSingle();
+  return data as { id: string; quantite: number } | null;
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 function InterventionDetail() {
@@ -107,6 +118,11 @@ function InterventionDetail() {
     setHeureFinInput(toDatetimeLocal(intervention?.heure_fin));
   }, [intervention?.heure_debut, intervention?.heure_fin]);
 
+  const [consignesInput, setConsignesInput] = useState("");
+  useEffect(() => {
+    setConsignesInput(intervention?.consignes ?? "");
+  }, [intervention?.consignes]);
+
   // Un technicien ne peut consulter que ses propres interventions assignées —
   // sinon retour au Terrain.
   useEffect(() => {
@@ -122,9 +138,15 @@ function InterventionDetail() {
   const [uploadingPhotos, setUploadingPhotos] = useState(false);
   const [showSignatureCanvas, setShowSignatureCanvas] = useState(false);
   const [savingSignature, setSavingSignature] = useState(false);
+  const [editingCompteRendu, setEditingCompteRendu] = useState(false);
 
   const photos: string[] = intervention?.photos ?? [];
   const rapportNum = intervention ? reportNumber(intervention.id) : "";
+  const hasCompteRendu = !!(intervention?.produits?.trim() || intervention?.observations?.trim());
+  // Le compte-rendu appartient à la personne assignée : le technicien ne peut
+  // le remplir qu'une fois le chantier démarré ; owner/bureau peuvent toujours
+  // le remplir/corriger (y compris pour un chantier qui n'est pas le leur).
+  const canFillCompteRendu = !isTechnician || (isMine && intervention?.statut !== "planifiee");
 
   // ── Photo handlers ──────────────────────────────────────────────────────────
 
@@ -172,7 +194,17 @@ function InterventionDetail() {
   async function handleTechnicienChange(technicienId: string) {
     await db.from("interventions").update({ technicien_id: technicienId === "none" ? null : technicienId }).eq("id", id);
     qc.invalidateQueries({ queryKey: ["intervention", id] });
+    qc.invalidateQueries({ queryKey: ["my_todo_count"] });
     toast.success("Technicien assigné mis à jour");
+  }
+
+  // ── Consignes (planification, owner/bureau) ─────────────────────────────────
+
+  async function handleSaveConsignes() {
+    const { error } = await db.from("interventions").update({ consignes: consignesInput || null }).eq("id", id);
+    if (error) { toast.error(error.message); return; }
+    qc.invalidateQueries({ queryKey: ["intervention", id] });
+    toast.success("Consignes mises à jour");
   }
 
   // ── Compteur de passages contrat ─────────────────────────────────────────────
@@ -187,6 +219,77 @@ function InterventionDetail() {
     qc.invalidateQueries({ queryKey: ["contract", intervention.contract_id] });
   }
 
+  // ── Compte-rendu (produits, observations, prochain passage) ─────────────────
+  // Premier envoi = déduction stock (comme l'ancienne création) ; les envois
+  // suivants (correction owner/bureau) ne re-déduisent pas le stock.
+
+  async function handleSaveCompteRendu(values: IFType, stockItems: StockUsageItem[]) {
+    const isFirstSubmission = !hasCompteRendu;
+    const technicienId = intervention?.technicien_id ?? null;
+
+    if (isFirstSubmission && stockItems.length > 0) {
+      const warnings: string[] = [];
+      for (const item of stockItems) {
+        const level = await fetchStockLevel(item.product_id, technicienId);
+        const disponible = Number(level?.quantite ?? 0);
+        if (disponible < item.quantite) {
+          warnings.push(`Stock insuffisant pour ${item.nom} : il reste seulement ${disponible} ${item.unite} ${technicienId ? "sur le camion" : "au garage"}`);
+        }
+      }
+      if (warnings.length > 0) {
+        const proceed = window.confirm(`⚠️ Attention :\n${warnings.join("\n")}\n\nContinuer quand même ?`);
+        if (!proceed) return;
+      }
+    }
+
+    const produits_utilises = stockItems.map((i) => ({
+      product_id: i.product_id,
+      nom: i.nom,
+      quantite: i.quantite,
+      unite: i.unite,
+    }));
+
+    const updates: Record<string, unknown> = {
+      produits: values.produits,
+      quantite: values.quantite,
+      observations: values.observations,
+      date_prochain_passage: values.date_prochain_passage || null,
+    };
+    if (isFirstSubmission) updates.produits_utilises = produits_utilises;
+
+    const { error } = await db.from("interventions").update(updates).eq("id", id);
+    if (error) { toast.error(error.message); return; }
+
+    if (isFirstSubmission) {
+      for (const item of stockItems) {
+        const level = await fetchStockLevel(item.product_id, technicienId);
+        const current = Number(level?.quantite ?? 0);
+        const next = Math.max(0, current - item.quantite);
+        if (level) {
+          await db.from("stock_levels").update({ quantite: next }).eq("id", level.id);
+        } else {
+          await db.from("stock_levels").insert({ product_id: item.product_id, technicien_id: technicienId, quantite: next, user_id: intervention?.user_id });
+        }
+        await logStockMovement({
+          product_id: item.product_id,
+          type: "consommation",
+          technicien_id: technicienId,
+          intervention_id: id,
+          quantite: item.quantite,
+        });
+      }
+      if (stockItems.length > 0) {
+        qc.invalidateQueries({ queryKey: ["stock_levels"] });
+        qc.invalidateQueries({ queryKey: ["my_van_stock"] });
+        qc.invalidateQueries({ queryKey: ["product_stats"] });
+      }
+    }
+
+    qc.invalidateQueries({ queryKey: ["intervention", id] });
+    setEditingCompteRendu(false);
+    toast.success("Compte-rendu enregistré");
+  }
+
   // ── Signature handler ───────────────────────────────────────────────────────
 
   async function handleSignatureSave(blob: Blob) {
@@ -196,7 +299,7 @@ function InterventionDetail() {
     if (url) {
       const signedAt = new Date().toISOString();
       await maybeIncrementContractPassages("realisee");
-      const updates: Record<string, unknown> = { signature_url: url, signature_at: signedAt, statut: "realisee" };
+      const updates: Record<string, unknown> = { signature_url: url, signature_at: signedAt, statut: "realisee", retour_admin: null };
       if (!intervention?.heure_fin) updates.heure_fin = signedAt;
       await db.from("interventions").update(updates).eq("id", id);
       qc.invalidateQueries({ queryKey: ["intervention", id] });
@@ -221,10 +324,15 @@ function InterventionDetail() {
     const updates: Record<string, unknown> = { statut };
     const now = new Date().toISOString();
     if (statut === "en_cours" && !intervention?.heure_debut) updates.heure_debut = now;
-    if (statut === "realisee" && !intervention?.heure_fin) updates.heure_fin = now;
+    if (statut === "realisee") {
+      if (!intervention?.heure_fin) updates.heure_fin = now;
+      // La re-soumission par le technicien efface le retour du responsable.
+      updates.retour_admin = null;
+    }
     await db.from("interventions").update(updates).eq("id", id);
     qc.invalidateQueries({ queryKey: ["intervention", id] });
     qc.invalidateQueries({ queryKey: ["interventions"] });
+    qc.invalidateQueries({ queryKey: ["my_todo_count"] });
   }
 
   // ── Temps passé (correction manuelle, owner/bureau) ─────────────────────────
@@ -241,18 +349,17 @@ function InterventionDetail() {
   }
 
   // Admin : renvoie un rapport "Terminée" au technicien pour correction.
+  // La note est stockée à part (retour_admin) — jamais dans observations,
+  // pour ne pas finir dans le rapport PDF envoyé au client.
   async function handleReturnToTechnician() {
     const note = window.prompt("Note pour le technicien (optionnel) :", "");
     if (note === null) return;
-    const updates: Record<string, unknown> = { statut: "en_cours" };
-    if (note.trim()) {
-      const current = intervention?.observations ?? "";
-      updates.observations = current ? `${current}\n[Retour admin] ${note.trim()}` : `[Retour admin] ${note.trim()}`;
-    }
+    const updates: Record<string, unknown> = { statut: "en_cours", retour_admin: note.trim() || null };
     const { error } = await db.from("interventions").update(updates).eq("id", id);
     if (error) { toast.error(error.message); return; }
     qc.invalidateQueries({ queryKey: ["intervention", id] });
     qc.invalidateQueries({ queryKey: ["interventions"] });
+    qc.invalidateQueries({ queryKey: ["my_todo_count"] });
     toast.success("Renvoyé au technicien");
   }
 
@@ -279,19 +386,21 @@ function InterventionDetail() {
       adresse_site: intervention.adresse_site,
       type_nuisible: intervention.type_nuisible,
       type_intervention: intervention.type_intervention,
-      produits: intervention.produits,
-      quantite: intervention.quantite,
-      observations: intervention.observations,
+      technicien_id: intervention.technicien_id,
+      contract_id: intervention.contract_id,
+      consignes: intervention.consignes,
       statut: "planifiee",
       date_prochain_passage: null,
     }).select().single();
     if (error) { toast.error(error.message); return; }
     qc.invalidateQueries({ queryKey: ["interventions"] });
+    qc.invalidateQueries({ queryKey: ["my_todo_count"] });
     toast.success("Intervention dupliquée");
     navigate({ to: "/interventions/$id", params: { id: data.id } });
   }
 
   // ── PDF ─────────────────────────────────────────────────────────────────────
+  // Ne jamais inclure retour_admin (note interne au responsable) dans le PDF.
 
   function generatePDF() {
     if (!intervention) return;
@@ -644,6 +753,10 @@ ${intervention.observations ? `
 
   const clientEmail = intervention.client?.email ?? "";
   const hasSig = !!intervention.signature_url;
+  const assignedContract = contracts.find((c) => c.id === intervention.contract_id);
+  const contractLabel = assignedContract
+    ? `${assignedContract.numero ? `${assignedContract.numero} — ` : ""}${assignedContract.nom_etablissement || "Établissement"}`
+    : "Aucun contrat";
 
   return (
     <div className="space-y-4">
@@ -702,7 +815,20 @@ ${intervention.observations ? `
         </CardContent>
       </Card>
 
-      {/* 1bis. Workflow technicien — uniquement sur sa propre intervention */}
+      {/* 1bis. Retour du responsable — visible technicien assigné + owner/bureau */}
+      {intervention.retour_admin && (!isTechnician || isMine) && (
+        <Card className="border-orange-400 bg-orange-50 dark:border-orange-900/60 dark:bg-orange-950/30">
+          <CardContent className="p-4 flex items-start gap-2.5">
+            <MessageSquareWarning className="h-4 w-4 text-orange-600 dark:text-orange-400 mt-0.5 shrink-0" />
+            <div className="text-sm">
+              <p className="font-semibold text-orange-700 dark:text-orange-400">Retour du responsable</p>
+              <p className="text-orange-700/90 dark:text-orange-400/90 whitespace-pre-wrap mt-0.5">{intervention.retour_admin}</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* 1ter. Workflow technicien — uniquement sur sa propre intervention */}
       {isTechnician && isMine && (
         <Card className="border-primary/30 bg-primary/5">
           <CardContent className="p-4 space-y-2.5">
@@ -715,7 +841,7 @@ ${intervention.observations ? `
             {intervention.statut === "en_cours" && (
               <>
                 <p className="text-xs text-muted-foreground">
-                  Renseignez le compte-rendu, les produits utilisés, les photos et la signature client ci-dessous, puis marquez l'intervention comme terminée.
+                  Renseignez le compte-rendu ci-dessous (produits utilisés, observations, photos, signature), puis marquez l'intervention comme terminée.
                 </p>
                 <Button className="w-full" onClick={() => updateStatut("realisee")}>
                   <CheckCircle className="mr-2 h-4 w-4" /> Marquer terminée
@@ -738,7 +864,7 @@ ${intervention.observations ? `
         </Card>
       )}
 
-      {/* 1ter. Vérification admin — rapport terminé en attente de validation */}
+      {/* 1quater. Vérification admin — rapport terminé en attente de validation */}
       {!isTechnician && intervention.statut === "realisee" && (
         <Card className="border-orange-300 bg-orange-50 dark:border-orange-900/50 dark:bg-orange-950/20">
           <CardContent className="p-4 space-y-2.5">
@@ -795,18 +921,79 @@ ${intervention.observations ? `
         <SiteHistoryPanel history={siteHistory} assignableMembers={assignableMembers} />
       )}
 
-      {/* 3. Intervention */}
-      <Card>
-        <CardContent className="p-4 space-y-3">
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Intervention</h2>
-          <InfoRow icon={<Bug className="h-4 w-4" />} label="Type de nuisible" value={intervention.type_nuisible || "—"} />
-          <InfoRow icon={<FlaskConical className="h-4 w-4" />} label="Type d'intervention" value={intervention.type_intervention || "—"} />
-          <InfoRow icon={<Package className="h-4 w-4" />} label="Produits utilisés" value={intervention.produits || "—"} />
-          <InfoRow icon={<ClipboardList className="h-4 w-4" />} label="Quantité" value={intervention.quantite || "—"} />
-          {intervention.date_prochain_passage && (
-            <InfoRow icon={<CalendarClock className="h-4 w-4" />} label="Prochain passage" value={formatDateFR(intervention.date_prochain_passage)} />
-          )}
-          <div className="space-y-1.5">
+      {/* 3. La mission (planification) */}
+      <section className="space-y-2">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5 px-1">
+          <ClipboardList className="h-4 w-4" /> La mission
+        </h2>
+        <Card>
+          <CardContent className="p-4 space-y-3">
+            <InfoRow icon={<Bug className="h-4 w-4" />} label="Type de nuisible" value={intervention.type_nuisible || "—"} />
+            <InfoRow icon={<FlaskConical className="h-4 w-4" />} label="Type d'intervention" value={intervention.type_intervention || "—"} />
+
+            <div className="space-y-1.5">
+              <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Contrat rattaché</div>
+              {isTechnician ? (
+                <p className="text-sm">{contractLabel}</p>
+              ) : (
+                <Select value={intervention.contract_id ?? ""} onValueChange={handleContractChange}>
+                  <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Aucun contrat" /></SelectTrigger>
+                  <SelectContent>
+                    {contracts.filter((c) => c.client_id === intervention.client_id).map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.numero ? `${c.numero} — ` : ""}{c.nom_etablissement || "Établissement"}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+
+            <div className="space-y-1.5">
+              <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Technicien assigné</div>
+              {isTechnician ? (
+                <p className="text-sm">{technicienName ?? "—"}</p>
+              ) : (
+                <TechnicianSelect
+                  value={intervention.technicien_id ?? "none"}
+                  onValueChange={handleTechnicienChange}
+                  triggerClassName="h-8 text-sm"
+                />
+              )}
+            </div>
+
+            <div className="space-y-1.5">
+              <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground flex items-center gap-1">
+                <ClipboardEdit className="h-3 w-3" /> Consignes pour le technicien
+              </div>
+              {isTechnician ? (
+                <p className="text-sm whitespace-pre-wrap">{intervention.consignes || "—"}</p>
+              ) : (
+                <div className="space-y-1.5">
+                  <Textarea
+                    rows={2}
+                    value={consignesInput}
+                    onChange={(e) => setConsignesInput(e.target.value)}
+                    placeholder="Ex. clés chez le gardien, attention chien…"
+                    className="text-sm"
+                  />
+                  <Button size="sm" variant="outline" onClick={handleSaveConsignes}>Enregistrer</Button>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </section>
+
+      {/* 4. Le compte-rendu (terrain) */}
+      <section className="space-y-2">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5 px-1">
+          <PenLine className="h-4 w-4" /> Le compte-rendu
+        </h2>
+
+        {/* Durée sur site */}
+        <Card>
+          <CardContent className="p-4 space-y-1.5">
             <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground flex items-center gap-1">
               <Timer className="h-3 w-3" /> Durée sur site
             </div>
@@ -846,70 +1033,133 @@ ${intervention.observations ? `
                 )}
               </div>
             )}
-          </div>
-          <div className="space-y-1.5">
-            <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Contrat rattaché</div>
-            <Select value={intervention.contract_id ?? ""} onValueChange={handleContractChange}>
-              <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Aucun contrat" /></SelectTrigger>
-              <SelectContent>
-                {contracts.filter((c) => c.client_id === intervention.client_id).map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.numero ? `${c.numero} — ` : ""}{c.nom_etablissement || "Établissement"}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
-            <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Technicien assigné</div>
-            <TechnicianSelect
-              value={intervention.technicien_id ?? "none"}
-              onValueChange={handleTechnicienChange}
-              triggerClassName="h-8 text-sm"
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* 4. Compte-rendu */}
-      {intervention.observations && (
-        <Card>
-          <CardContent className="p-4 space-y-2">
-            <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Compte-rendu / Observations</h2>
-            <p className="text-sm whitespace-pre-wrap">{intervention.observations}</p>
           </CardContent>
         </Card>
-      )}
 
-      {/* 5. Photos */}
-      <Card>
-        <CardContent className="p-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
-              <Camera className="h-4 w-4" /> Photos ({photos.length}/5)
-            </h2>
-            {photos.length < 5 && (
-              <label className={cn("flex items-center gap-1 text-xs text-primary cursor-pointer", uploadingPhotos && "opacity-50 pointer-events-none")}>
-                <Camera className="h-3.5 w-3.5" />
-                {uploadingPhotos ? "Upload…" : "Ajouter"}
-                <input type="file" accept="image/*" capture="environment" multiple className="sr-only" onChange={handleAddPhotos} disabled={uploadingPhotos} />
-              </label>
-            )}
-          </div>
-          {photos.length === 0 ? (
-            <p className="text-xs text-muted-foreground">Aucune photo.</p>
-          ) : (
-            <div className="grid grid-cols-3 gap-2">
-              {photos.map((url, i) => (
-                <button key={url} type="button" onClick={() => setLightboxIndex(i)}
-                  className="relative aspect-square rounded-md overflow-hidden border hover:opacity-90 transition-opacity">
-                  <img src={url} alt={`Photo ${i + 1}`} className="w-full h-full object-cover" />
-                </button>
-              ))}
+        {/* Produits / observations / prochain passage */}
+        {hasCompteRendu && !editingCompteRendu ? (
+          <Card>
+            <CardContent className="p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Compte-rendu</h3>
+                {!isTechnician && (
+                  <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setEditingCompteRendu(true)}>
+                    <Pencil className="mr-1 h-3 w-3" /> Modifier
+                  </Button>
+                )}
+              </div>
+              <InfoRow icon={<Package className="h-4 w-4" />} label="Produits utilisés" value={intervention.produits || "—"} />
+              <InfoRow icon={<ClipboardList className="h-4 w-4" />} label="Quantité" value={intervention.quantite || "—"} />
+              {intervention.date_prochain_passage && (
+                <InfoRow icon={<CalendarClock className="h-4 w-4" />} label="Prochain passage" value={formatDateFR(intervention.date_prochain_passage)} />
+              )}
+              {intervention.observations && (
+                <div className="pt-1 border-t">
+                  <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground mt-2 mb-1">Observations</div>
+                  <p className="text-sm whitespace-pre-wrap">{intervention.observations}</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        ) : canFillCompteRendu ? (
+          <Card>
+            <CardContent className="p-4">
+              <InterventionForm
+                mode="compte-rendu"
+                defaultValues={{
+                  client_id: intervention.client_id,
+                  date: intervention.date,
+                  type_intervention: intervention.type_intervention as any,
+                  technicien_id: intervention.technicien_id ?? undefined,
+                  produits: intervention.produits ?? "",
+                  quantite: intervention.quantite ?? "",
+                  observations: intervention.observations ?? "",
+                  date_prochain_passage: intervention.date_prochain_passage ?? "",
+                }}
+                onSubmit={handleSaveCompteRendu}
+                submitLabel={hasCompteRendu ? "Enregistrer les modifications" : "Enregistrer le compte-rendu"}
+              />
+              {editingCompteRendu && (
+                <Button variant="ghost" size="sm" className="w-full mt-1.5 text-xs text-muted-foreground" onClick={() => setEditingCompteRendu(false)}>
+                  Annuler
+                </Button>
+              )}
+            </CardContent>
+          </Card>
+        ) : (
+          <Card>
+            <CardContent className="p-4 text-sm text-muted-foreground text-center">
+              Disponible une fois l'intervention démarrée.
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Photos */}
+        <Card>
+          <CardContent className="p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
+                <Camera className="h-4 w-4" /> Photos ({photos.length}/5)
+              </h3>
+              {photos.length < 5 && (
+                <label className={cn("flex items-center gap-1 text-xs text-primary cursor-pointer", uploadingPhotos && "opacity-50 pointer-events-none")}>
+                  <Camera className="h-3.5 w-3.5" />
+                  {uploadingPhotos ? "Upload…" : "Ajouter"}
+                  <input type="file" accept="image/*" capture="environment" multiple className="sr-only" onChange={handleAddPhotos} disabled={uploadingPhotos} />
+                </label>
+              )}
             </div>
-          )}
-        </CardContent>
-      </Card>
+            {photos.length === 0 ? (
+              <p className="text-xs text-muted-foreground">Aucune photo.</p>
+            ) : (
+              <div className="grid grid-cols-3 gap-2">
+                {photos.map((url, i) => (
+                  <button key={url} type="button" onClick={() => setLightboxIndex(i)}
+                    className="relative aspect-square rounded-md overflow-hidden border hover:opacity-90 transition-opacity">
+                    <img src={url} alt={`Photo ${i + 1}`} className="w-full h-full object-cover" />
+                  </button>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Signature client */}
+        <Card>
+          <CardContent className="p-4 space-y-3">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
+              <PenLine className="h-4 w-4" /> Signature client
+            </h3>
+            {hasSig ? (
+              <div className="space-y-2">
+                <div className="rounded-lg border bg-white dark:bg-zinc-900 p-3 text-center">
+                  <img src={intervention.signature_url!} alt="Signature client" className="max-h-20 mx-auto" />
+                  <p className="text-[10px] text-muted-foreground mt-1 flex items-center justify-center gap-1">
+                    <CheckCircle className="h-3 w-3 text-primary" />
+                    Signé par le client — {formatDateTime((intervention as any).signature_at)}
+                  </p>
+                </div>
+                <button type="button" onClick={handleDeleteSignature}
+                  className="text-xs text-destructive/70 hover:text-destructive underline">
+                  Supprimer la signature
+                </button>
+              </div>
+            ) : showSignatureCanvas ? (
+              <div>
+                {savingSignature ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">Enregistrement…</p>
+                ) : (
+                  <SignatureCanvas onSave={handleSignatureSave} />
+                )}
+              </div>
+            ) : (
+              <Button type="button" variant="outline" className="w-full" onClick={() => setShowSignatureCanvas(true)}>
+                <PenLine className="mr-2 h-4 w-4" /> Faire signer le client
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+      </section>
 
       {/* Lightbox */}
       {lightboxIndex !== null && (
@@ -942,43 +1192,7 @@ ${intervention.observations ? `
         </div>
       )}
 
-      {/* 6. Signature client */}
-      <Card>
-        <CardContent className="p-4 space-y-3">
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
-            <PenLine className="h-4 w-4" /> Signature client
-          </h2>
-          {hasSig ? (
-            <div className="space-y-2">
-              <div className="rounded-lg border bg-white dark:bg-zinc-900 p-3 text-center">
-                <img src={intervention.signature_url!} alt="Signature client" className="max-h-20 mx-auto" />
-                <p className="text-[10px] text-muted-foreground mt-1 flex items-center justify-center gap-1">
-                  <CheckCircle className="h-3 w-3 text-primary" />
-                  Signé par le client — {formatDateTime((intervention as any).signature_at)}
-                </p>
-              </div>
-              <button type="button" onClick={handleDeleteSignature}
-                className="text-xs text-destructive/70 hover:text-destructive underline">
-                Supprimer la signature
-              </button>
-            </div>
-          ) : showSignatureCanvas ? (
-            <div>
-              {savingSignature ? (
-                <p className="text-sm text-muted-foreground text-center py-4">Enregistrement…</p>
-              ) : (
-                <SignatureCanvas onSave={handleSignatureSave} />
-              )}
-            </div>
-          ) : (
-            <Button type="button" variant="outline" className="w-full" onClick={() => setShowSignatureCanvas(true)}>
-              <PenLine className="mr-2 h-4 w-4" /> Faire signer le client
-            </Button>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* 7. Actions */}
+      {/* 5. Actions */}
       <div className="space-y-2">
         <Button className="w-full bg-accent hover:bg-accent/90 text-accent-foreground" onClick={generatePDF}>
           <FileText className="mr-2 h-4 w-4" /> Générer PDF rapport officiel

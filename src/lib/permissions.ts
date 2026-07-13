@@ -1,6 +1,6 @@
 export type PermissionKey =
   | "accueil" | "clients" | "devis" | "contrats" | "factures"
-  | "stock" | "tresorerie" | "stats" | "parametres" | "export";
+  | "stock" | "reappro" | "tresorerie" | "stats" | "parametres" | "export";
 
 // Ordre d'affichage + libellés dans l'éditeur d'autorisations
 export const PERMISSION_LABELS: Record<PermissionKey, string> = {
@@ -10,6 +10,7 @@ export const PERMISSION_LABELS: Record<PermissionKey, string> = {
   contrats:   "Contrats",
   factures:   "Factures",
   stock:      "Stock",
+  reappro:    "Demandes de réappro",
   tresorerie: "Trésorerie",
   stats:      "Statistiques",
   parametres: "Paramètres",
@@ -19,7 +20,7 @@ export const PERMISSION_LABELS: Record<PermissionKey, string> = {
 export const ALL_PERMISSION_KEYS = Object.keys(PERMISSION_LABELS) as PermissionKey[];
 
 // Modèles rapides (points de départ ; le patron ajuste ensuite les cases)
-export const PRESET_BUREAU: PermissionKey[] = ["accueil", "clients", "devis", "contrats", "factures"];
+export const PRESET_BUREAU: PermissionKey[] = ["accueil", "clients", "devis", "contrats", "factures", "reappro"];
 export const PRESET_TECHNICIEN: PermissionKey[] = ["stock"]; // Terrain est déjà toujours visible
 
 export function presetToPermissions(keys: PermissionKey[]): Record<string, boolean> {

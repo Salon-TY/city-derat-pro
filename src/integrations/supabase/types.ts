@@ -194,6 +194,7 @@ export type Database = {
         Row: {
           adresse_site: string | null
           client_id: string
+          consignes: string | null
           contract_id: string | null
           created_at: string
           date: string
@@ -204,6 +205,7 @@ export type Database = {
           observations: string | null
           produits: string | null
           quantite: string | null
+          retour_admin: string | null
           statut: string
           technicien_id: string | null
           type_intervention: string
@@ -214,6 +216,7 @@ export type Database = {
         Insert: {
           adresse_site?: string | null
           client_id: string
+          consignes?: string | null
           contract_id?: string | null
           created_at?: string
           date: string
@@ -224,6 +227,7 @@ export type Database = {
           observations?: string | null
           produits?: string | null
           quantite?: string | null
+          retour_admin?: string | null
           statut?: string
           technicien_id?: string | null
           type_intervention?: string
@@ -234,6 +238,7 @@ export type Database = {
         Update: {
           adresse_site?: string | null
           client_id?: string
+          consignes?: string | null
           contract_id?: string | null
           created_at?: string
           date?: string
@@ -244,6 +249,7 @@ export type Database = {
           observations?: string | null
           produits?: string | null
           quantite?: string | null
+          retour_admin?: string | null
           statut?: string
           technicien_id?: string | null
           type_intervention?: string
@@ -541,6 +547,53 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      stock_requests: {
+        Row: {
+          id: string
+          product_id: string
+          technicien_id: string
+          quantite: number
+          note: string | null
+          statut: string
+          traite_par: string | null
+          traite_at: string | null
+          user_id: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          product_id: string
+          technicien_id: string
+          quantite: number
+          note?: string | null
+          statut?: string
+          traite_par?: string | null
+          traite_at?: string | null
+          user_id: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          product_id?: string
+          technicien_id?: string
+          quantite?: number
+          note?: string | null
+          statut?: string
+          traite_par?: string | null
+          traite_at?: string | null
+          user_id?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_requests_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "stock_products"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       team_members: {
         Row: {

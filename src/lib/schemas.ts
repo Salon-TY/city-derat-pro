@@ -63,6 +63,7 @@ export const interventionSchema = z.object({
   produits: z.string().max(500).default(""),
   quantite: z.string().max(100).default(""),
   observations: z.string().max(2000).default(""),
+  consignes: z.string().max(2000).default(""),
   statut: z.string().default("planifiee"),
   date_prochain_passage: z.string().optional().nullable(),
 });

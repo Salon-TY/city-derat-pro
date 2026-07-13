@@ -40,6 +40,8 @@ export type Intervention = {
   produits: string;
   quantite: string;
   observations: string;
+  consignes?: string | null;
+  retour_admin?: string | null;
   statut: string;
   date_prochain_passage: string | null;
   heure_debut?: string | null;
@@ -390,6 +392,89 @@ export async function logStockMovement(params: {
   } catch (e) {
     console.error("[stock_movements] insert failed:", e);
   }
+}
+
+// ─── Demandes de réapprovisionnement (technicien → admin/bureau) ────────────
+
+export type StockRequestStatut = "en_attente" | "servie" | "refusee";
+
+export type StockRequest = {
+  id: string;
+  product_id: string;
+  technicien_id: string;
+  quantite: number;
+  note: string | null;
+  statut: StockRequestStatut;
+  traite_par: string | null;
+  traite_at: string | null;
+  user_id: string;
+  created_at: string;
+  product?: { nom: string; unite: string } | null;
+};
+
+function mapStockRequest(r: any): StockRequest {
+  return { ...r, quantite: Number(r.quantite) };
+}
+
+// Vue "handler" (owner / can("reappro")) : toutes les demandes, filtrables par statut.
+export function useStockRequests(statut?: StockRequestStatut) {
+  return useQuery({
+    queryKey: ["stock_requests", statut ?? "all"],
+    queryFn: async (): Promise<StockRequest[]> => {
+      let q = db.from("stock_requests").select("*, product:stock_products(nom, unite)").order("created_at", { ascending: false });
+      if (statut) q = q.eq("statut", statut);
+      const { data, error } = await q;
+      if (error) throw error;
+      return (data ?? []).map(mapStockRequest);
+    },
+  });
+}
+
+// Vue technicien : ses propres demandes.
+export function useMyStockRequests() {
+  return useQuery({
+    queryKey: ["my_stock_requests"],
+    queryFn: async (): Promise<StockRequest[]> => {
+      const { data: { user } } = await db.auth.getUser();
+      if (!user) return [];
+      const { data, error } = await db
+        .from("stock_requests")
+        .select("*, product:stock_products(nom, unite)")
+        .eq("technicien_id", user.id)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []).map(mapStockRequest);
+    },
+  });
+}
+
+export function usePendingStockRequestsCount() {
+  return useQuery({
+    queryKey: ["stock_requests_pending_count"],
+    queryFn: async (): Promise<number> => {
+      const { count, error } = await db.from("stock_requests").select("*", { count: "exact", head: true }).eq("statut", "en_attente");
+      if (error) throw error;
+      return count ?? 0;
+    },
+  });
+}
+
+// Interventions "à faire" (planifiee) assignées au technicien courant — badge Terrain/Accueil.
+export function useMyTodoCount() {
+  return useQuery({
+    queryKey: ["my_todo_count"],
+    queryFn: async (): Promise<number> => {
+      const { data: { user } } = await db.auth.getUser();
+      if (!user) return 0;
+      const { count, error } = await db
+        .from("interventions")
+        .select("*", { count: "exact", head: true })
+        .eq("technicien_id", user.id)
+        .eq("statut", "planifiee");
+      if (error) throw error;
+      return count ?? 0;
+    },
+  });
 }
 
 export type ProductStat = {
