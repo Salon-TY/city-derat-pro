@@ -3,7 +3,7 @@ import { useState, useMemo, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { contractSchema, type ContractForm as ContractFormType, formatDateFR, STATUTS_CONTRAT, TYPES_PASSAGE } from "@/lib/schemas";
-import { useContracts, useClients } from "@/lib/queries";
+import { useContracts, useClients, useCurrentRole } from "@/lib/queries";
 import type { Contract } from "@/lib/queries";
 import { db } from "@/lib/db";
 import { toast } from "sonner";
@@ -241,7 +241,7 @@ function ContratsPage() {
                       {expired ? `Expiré depuis ${Math.abs(days)} jour${Math.abs(days) > 1 ? "s" : ""}` : `Expire dans ${days} jour${days > 1 ? "s" : ""}`}
                     </div>
                   )}
-                  <UpdatePassages contrat={c} />
+                  <CorrigerPassages contrat={c} />
                 </CardContent>
               </Card>
             );
@@ -282,20 +282,38 @@ function DeleteContratButton({ id, nom }: { id: string; nom: string }) {
   );
 }
 
-function UpdatePassages({ contrat }: { contrat: any }) {
+// Le compteur passages_realises est désormais tenu à jour automatiquement
+// (une intervention liée au contrat qui passe "Terminée" l'incrémente, un
+// renvoi/une annulation le décrémente — voir syncContractPassageCount dans
+// queries.ts). Ce contrôle n'est qu'une correction manuelle de secours,
+// réservée au propriétaire, pour ne jamais avoir deux sources de vérité.
+function CorrigerPassages({ contrat }: { contrat: any }) {
   const qc = useQueryClient();
-  async function increment() {
-    if (contrat.passages_realises >= contrat.nb_passages_inclus) return;
-    const { error } = await db.from("contracts").update({ passages_realises: contrat.passages_realises + 1 }).eq("id", contrat.id);
-    if (error) { toast.error(error.message); return; }
-    qc.invalidateQueries({ queryKey: ["contracts"] });
-    toast.success("Passage enregistré");
+  const { data: role } = useCurrentRole();
+  if (role !== "owner") return null;
+
+  function correct() {
+    const raw = window.prompt(
+      "Correction manuelle — nombre de passages réalisés (normalement calculé automatiquement depuis les interventions terminées) :",
+      String(contrat.passages_realises)
+    );
+    if (raw == null) return;
+    const n = Number(raw.replace(",", "."));
+    if (!Number.isFinite(n) || n < 0) { toast.error("Valeur invalide"); return; }
+    const clamped = Math.min(contrat.nb_passages_inclus, Math.round(n));
+    (async () => {
+      const { error } = await db.from("contracts").update({ passages_realises: clamped }).eq("id", contrat.id);
+      if (error) { toast.error(error.message); return; }
+      qc.invalidateQueries({ queryKey: ["contracts"] });
+      qc.invalidateQueries({ queryKey: ["passages_a_programmer"] });
+      toast.success("Correction enregistrée");
+    })();
   }
+
   return (
-    <Button variant="outline" size="sm" className="h-7 text-xs" onClick={increment}
-      disabled={contrat.passages_realises >= contrat.nb_passages_inclus}>
-      + Enregistrer un passage
-    </Button>
+    <button type="button" onClick={correct} className="self-start text-[11px] text-muted-foreground underline hover:text-foreground">
+      Corriger le compteur (manuel)
+    </button>
   );
 }
 

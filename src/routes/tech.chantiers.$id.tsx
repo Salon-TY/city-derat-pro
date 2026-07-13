@@ -7,7 +7,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import {
   useIntervention, useContracts, useSiteHistory, useAssignableMembers,
-  resolveTechnicianName, logStockMovement, type Intervention,
+  resolveTechnicianName, logStockMovement, syncContractPassageCount, type Intervention,
 } from "@/lib/queries";
 import { formatDateFR, STATUTS_INTERVENTION } from "@/lib/schemas";
 import type { InterventionForm as IFType } from "@/lib/schemas";
@@ -167,17 +167,16 @@ function TechChantierDetail() {
   }
 
   async function handleFinish() {
+    if (intervention?.contract_id) {
+      await syncContractPassageCount(intervention.contract_id, intervention.statut, "realisee");
+      qc.invalidateQueries({ queryKey: ["contracts"] });
+      qc.invalidateQueries({ queryKey: ["contract", intervention.contract_id] });
+      qc.invalidateQueries({ queryKey: ["passages_a_programmer"] });
+    }
     const updates: Record<string, unknown> = { statut: "realisee", retour_admin: null };
     if (!intervention?.heure_fin) updates.heure_fin = new Date().toISOString();
     const { error } = await db.from("interventions").update(updates).eq("id", id);
     if (error) { toast.error(error.message); return; }
-    if (intervention?.contract_id) {
-      const { data: contract } = await db.from("contracts").select("passages_realises, nb_passages_inclus").eq("id", intervention.contract_id).maybeSingle();
-      if (contract) {
-        const next = Math.min(contract.nb_passages_inclus, contract.passages_realises + 1);
-        await db.from("contracts").update({ passages_realises: next }).eq("id", intervention.contract_id);
-      }
-    }
     qc.invalidateQueries({ queryKey: ["intervention", id] });
     qc.invalidateQueries({ queryKey: ["interventions"] });
     qc.invalidateQueries({ queryKey: ["my_todo_count"] });

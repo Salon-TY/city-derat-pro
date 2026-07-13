@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useIntervention, useSettings, useProduitsBiocides, useContracts, useAssignableMembers, resolveTechnicianName, useSiteHistory, logStockMovement, type AssignableMember, type Intervention } from "@/lib/queries";
+import { useIntervention, useSettings, useProduitsBiocides, useContracts, useAssignableMembers, resolveTechnicianName, useSiteHistory, logStockMovement, syncContractPassageCount, type AssignableMember, type Intervention } from "@/lib/queries";
 import { formatDateFR, STATUTS_INTERVENTION } from "@/lib/schemas";
 import type { InterventionForm as IFType } from "@/lib/schemas";
 import { Card, CardContent } from "@/components/ui/card";
@@ -193,15 +193,16 @@ function InterventionDetail() {
   }
 
   // ── Compteur de passages contrat ─────────────────────────────────────────────
+  // Source unique de vérité : syncContractPassageCount (queries.ts), appelée à
+  // chaque changement de statut avec l'ancien ET le nouveau statut, pour ne
+  // jamais compter deux fois un aller-retour realisee → en_cours → realisee.
 
-  async function maybeIncrementContractPassages(newStatut: string) {
-    if (!intervention?.contract_id || intervention.statut === "realisee" || newStatut !== "realisee") return;
-    const { data: contract } = await db.from("contracts").select("passages_realises, nb_passages_inclus").eq("id", intervention.contract_id).maybeSingle();
-    if (!contract) return;
-    const next = Math.min(contract.nb_passages_inclus, contract.passages_realises + 1);
-    await db.from("contracts").update({ passages_realises: next }).eq("id", intervention.contract_id);
+  async function syncPassages(newStatut: string | null) {
+    if (!intervention?.contract_id) return;
+    await syncContractPassageCount(intervention.contract_id, intervention.statut, newStatut);
     qc.invalidateQueries({ queryKey: ["contracts"] });
     qc.invalidateQueries({ queryKey: ["contract", intervention.contract_id] });
+    qc.invalidateQueries({ queryKey: ["passages_a_programmer"] });
   }
 
   // ── Compte-rendu (produits, observations, prochain passage) ─────────────────
@@ -283,7 +284,7 @@ function InterventionDetail() {
     const url = await uploadSignature(blob, user?.id ?? "");
     if (url) {
       const signedAt = new Date().toISOString();
-      await maybeIncrementContractPassages("realisee");
+      await syncPassages("realisee");
       const updates: Record<string, unknown> = { signature_url: url, signature_at: signedAt, statut: "realisee", retour_admin: null };
       if (!intervention?.heure_fin) updates.heure_fin = signedAt;
       await db.from("interventions").update(updates).eq("id", id);
@@ -305,7 +306,7 @@ function InterventionDetail() {
   // ── Statut ──────────────────────────────────────────────────────────────────
 
   async function updateStatut(statut: string) {
-    await maybeIncrementContractPassages(statut);
+    await syncPassages(statut);
     const updates: Record<string, unknown> = { statut };
     const now = new Date().toISOString();
     if (statut === "en_cours" && !intervention?.heure_debut) updates.heure_debut = now;
@@ -339,6 +340,7 @@ function InterventionDetail() {
   async function handleReturnToTechnician() {
     const note = window.prompt("Note pour le technicien (optionnel) :", "");
     if (note === null) return;
+    await syncPassages("en_cours");
     const updates: Record<string, unknown> = { statut: "en_cours", retour_admin: note.trim() || null };
     const { error } = await db.from("interventions").update(updates).eq("id", id);
     if (error) { toast.error(error.message); return; }
@@ -351,6 +353,8 @@ function InterventionDetail() {
   // ── Delete / Duplicate ─────────────────────────────────────────────────────
 
   async function handleDelete() {
+    // Une intervention "faite" supprimée ne doit pas rester comptée sur le contrat.
+    await syncPassages(null);
     const { error } = await db.from("interventions").delete().eq("id", id);
     if (error) { toast.error(error.message); return; }
     qc.invalidateQueries({ queryKey: ["interventions"] });

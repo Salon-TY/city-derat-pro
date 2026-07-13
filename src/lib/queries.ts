@@ -612,6 +612,30 @@ export function useContract(id: string | undefined) {
   });
 }
 
+// Statuts d'intervention qui comptent comme "passage effectué" pour un contrat.
+const CONTRACT_DONE_STATUSES = ["realisee", "rapport_transmis"];
+
+// Source unique de vérité pour contracts.passages_realises : incrémente quand
+// une intervention liée à un contrat passe pour la première fois dans un
+// statut "fait" (realisee/rapport_transmis), décrémente si elle en ressort
+// (renvoyée au technicien, annulée…). Comparer l'ancien et le nouveau statut
+// évite tout double comptage sur les allers-retours de statut.
+export async function syncContractPassageCount(
+  contractId: string | null | undefined,
+  previousStatut: string | null | undefined,
+  newStatut: string | null | undefined
+): Promise<void> {
+  if (!contractId) return;
+  const wasDone = !!previousStatut && CONTRACT_DONE_STATUSES.includes(previousStatut);
+  const willBeDone = !!newStatut && CONTRACT_DONE_STATUSES.includes(newStatut);
+  if (wasDone === willBeDone) return;
+  const { data: contract } = await db.from("contracts").select("passages_realises, nb_passages_inclus").eq("id", contractId).maybeSingle();
+  if (!contract) return;
+  const delta = willBeDone ? 1 : -1;
+  const next = Math.max(0, Math.min(contract.nb_passages_inclus, contract.passages_realises + delta));
+  await db.from("contracts").update({ passages_realises: next }).eq("id", contractId);
+}
+
 export function useInvoices() {
   return useQuery({
     queryKey: ["invoices"],
