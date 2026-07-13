@@ -64,10 +64,13 @@ Le modèle : chaque donnée appartient à un **compte** (le patron), pas à un u
     - `_app.tsx` redirige tout technicien vers `/tech` avant de monter `AppShell` ; `tech.tsx` redirige symétriquement tout non-technicien vers `/`. `auth.tsx` route vers la bonne interface après connexion.
     - Nettoyage côté admin : `isTechnician`/`useMyPoste` retirés de `_app.interventions.$id.tsx`, `_app.interventions.index.tsx` (devenus inutiles, ces pages ne sont plus jamais vues par un technicien) ; `TechnicianVanView` retirée de `_app.stock.index.tsx`.
     - Réutilise les hooks génériques (`queries.ts`) et composants de saisie (`signature-canvas.tsx`, `InterventionForm` en mode `compte-rendu`, `photos.ts`) sans jamais importer de page/composant admin.
+12. **Passages à programmer (Phase 7)** : l'app **ne devine jamais de date** — elle surface seulement ce qu'il reste à programmer sur un contrat actif (`nb_passages_inclus − passages_realises − interventions déjà planifiées/en cours pour ce contrat`, via `usePassagesAProgrammer()`), et préremplit tout sauf la date à la création.
+    - `passages_realises` est désormais tenu à jour **automatiquement** par `syncContractPassageCount()` (`queries.ts`), appelée à chaque changement de statut d'intervention avec l'ancien ET le nouveau statut (incrémente en entrant dans `realisee`/`rapport_transmis`, décrémente en en sortant — évite tout double comptage sur un aller-retour). Le bouton "+1" manuel a été remplacé par une correction owner-only clairement labellisée.
+    - Permission `programmation` + page `/programmation` (`_app.programmation.index.tsx`) : liste les contrats avec un reste à programmer, dialogue "Programmer un passage" préremplissant client/adresse/contrat/type de nuisible (dérivé au mieux de `type_prestation`) — seule la date (et le technicien, optionnel) reste à saisir. Alerte dashboard + raccourci `?contract_id=` depuis la fiche contrat.
 
 ## Hooks & fichiers clés
 
-- `src/lib/queries.ts` : `useCurrentRole`, `useMyAccess`, `useMyPoste`, `useTeamMembers`, `useAssignableMembers`, `useTechnicianWorkload`, `useStockLevels`, `useMyVanStock`, `useStockMovements`/`useMyVanMovements`, `logStockMovement`, `useTechnicianStats`, `useDashboardStats` (dont `toVerifyCount`), `useSiteHistory`, `useStockRequests`/`useMyStockRequests`, `useMyTodoCount`, `useInterventions({ technicien_id })`, `getGarageLevel`/`getVanLevel`, `resolveTechnicianName`.
+- `src/lib/queries.ts` : `useCurrentRole`, `useMyAccess`, `useMyPoste`, `useTeamMembers`, `useAssignableMembers`, `useTechnicianWorkload`, `useStockLevels`, `useMyVanStock`, `useStockMovements`/`useMyVanMovements`, `logStockMovement`, `useTechnicianStats`, `useDashboardStats` (dont `toVerifyCount`), `useSiteHistory`, `useStockRequests`/`useMyStockRequests`, `useMyTodoCount`, `useInterventions({ technicien_id })`, `usePassagesAProgrammer`, `syncContractPassageCount`, `getGarageLevel`/`getVanLevel`, `resolveTechnicianName`.
 - `src/lib/` : `print.ts`, `team.ts`, `permissions.ts`, `schemas.ts` (dont `STATUTS_INTERVENTION`, `TYPES_PASSAGE`).
 - `src/components/` : `app-shell.tsx` (nav admin owner/bureau), `tech-shell.tsx` (nav technicien — indépendant, ne pas fusionner), `permission-gate.tsx`, `signature-canvas.tsx`, `intervention-form.tsx` (mode `planification` | `compte-rendu`, contient `TechnicianSelect`).
 - `src/routes/` : `_app.*` = admin (owner/bureau) ; `tech.*` = technicien (voir règle structurelle). Les deux layouts (`_app.tsx`, `tech.tsx`) se redirigent mutuellement selon le poste résolu.
@@ -79,5 +82,6 @@ Un assistant « planificateur » (côté chat) produit : (a) le SQL à exécuter
 
 ## En cours / à venir
 
-- **Plus tard (phase à part)** : génération automatique des interventions récurrentes depuis les contrats (« 1 passage hebdomadaire » → passages créés et prêts à assigner).
 - **Idées parkées** (surdimensionnées pour l'instant) : mode hors-ligne, notifications push/email, portail client, géoloc/tournée, SMS, satisfaction client.
+
+Note : la génération automatique des passages de contrat a été volontairement écartée (l'owner choisit toujours la date à la main) — voir Phase 7 "Passages à programmer" ci-dessus, qui couvre ce besoin sans deviner de date.
