@@ -8,11 +8,11 @@ import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useSettings, useMyTodoCount } from "@/lib/queries";
 
-const techNavItems = [
+const techNavItems: { to: string; label: string; icon: typeof LayoutDashboard; exact?: boolean }[] = [
   { to: "/tech", label: "Ma journée", icon: LayoutDashboard, exact: true },
   { to: "/tech/chantiers", label: "Mes chantiers", icon: ClipboardList },
   { to: "/tech/camion", label: "Mon camion", icon: Truck },
-] as const;
+];
 
 export function TechShell({ children }: { children: React.ReactNode }) {
   const location = useLocation();
@@ -81,7 +81,7 @@ export function TechShell({ children }: { children: React.ReactNode }) {
             return (
               <Link
                 key={item.to}
-                to={item.to}
+                to={item.to as any}
                 className={`relative flex flex-col items-center justify-center gap-0.5 py-2.5 text-[9px] font-medium transition-all ${
                   active ? "text-accent nav-active" : "text-muted-foreground hover:text-foreground"
                 }`}
