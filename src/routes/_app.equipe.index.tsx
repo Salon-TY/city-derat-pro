@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useCurrentRole, useTeamMembers, type TeamMember } from "@/lib/queries";
 import { USERNAME_RE } from "@/lib/team";
 import {
-  ALL_PERMISSION_KEYS, PERMISSION_LABELS, PRESET_BUREAU, PRESET_TECHNICIEN,
+  ALL_PERMISSION_KEYS, PERMISSION_LABELS, PRESET_BUREAU,
   presetToPermissions, type PermissionKey,
 } from "@/lib/permissions";
 import { createEmployee, resetEmployeePassword, setEmployeeActive, deleteEmployee } from "@/lib/api/team.functions";
@@ -180,6 +180,9 @@ function PermissionsEditor({ member }: { member: TeamMember }) {
   const [open, setOpen] = useState(false);
   const [perms, setPerms] = useState<Record<string, boolean>>(() => ({ ...(member.permissions ?? {}) }));
   const [saving, setSaving] = useState(false);
+  // Les techniciens ont leur propre interface (/tech/*) — ces cases ne
+  // s'appliquent qu'aux postes bureau (règle structurelle, voir CLAUDE.md).
+  const isTechnicien = member.poste === "technicien";
 
   function toggle(key: PermissionKey) {
     setPerms((p) => ({ ...p, [key]: !p[key] }));
@@ -229,19 +232,21 @@ function PermissionsEditor({ member }: { member: TeamMember }) {
             <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={() => applyPreset(PRESET_BUREAU, "bureau")}>
               Modèle Bureau
             </Button>
-            <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={() => applyPreset(PRESET_TECHNICIEN, "technicien")}>
-              Modèle Technicien
-            </Button>
           </div>
-          <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+          {isTechnicien && (
+            <p className="text-xs text-muted-foreground italic bg-muted/40 rounded-md px-3 py-2">
+              Les techniciens ont une interface dédiée (Ma journée / Mes chantiers / Mon camion). Les autorisations ci-dessous ne s'appliquent qu'aux postes Bureau.
+            </p>
+          )}
+          <div className={cn("grid grid-cols-2 gap-x-3 gap-y-2", isTechnicien && "opacity-50")}>
             {ALL_PERMISSION_KEYS.map((key) => (
-              <label key={key} className="flex items-center gap-2 text-xs cursor-pointer">
-                <Checkbox checked={!!perms[key]} onCheckedChange={() => toggle(key)} />
+              <label key={key} className={cn("flex items-center gap-2 text-xs", isTechnicien ? "cursor-not-allowed" : "cursor-pointer")}>
+                <Checkbox checked={!!perms[key]} onCheckedChange={() => toggle(key)} disabled={isTechnicien} />
                 {PERMISSION_LABELS[key]}
               </label>
             ))}
           </div>
-          <Button size="sm" className="w-full" disabled={saving} onClick={handleSave}>
+          <Button size="sm" className="w-full" disabled={saving || isTechnicien} onClick={handleSave}>
             {saving ? "Enregistrement…" : "Enregistrer les autorisations"}
           </Button>
         </div>

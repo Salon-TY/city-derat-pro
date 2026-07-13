@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useIntervention, useSettings, useProduitsBiocides, useContracts, useAssignableMembers, resolveTechnicianName, useCurrentRole, useMyPoste, useSiteHistory, logStockMovement, type AssignableMember, type Intervention } from "@/lib/queries";
+import { useIntervention, useSettings, useProduitsBiocides, useContracts, useAssignableMembers, resolveTechnicianName, useSiteHistory, logStockMovement, type AssignableMember, type Intervention } from "@/lib/queries";
 import { formatDateFR, STATUTS_INTERVENTION } from "@/lib/schemas";
 import type { InterventionForm as IFType } from "@/lib/schemas";
 import { Card, CardContent } from "@/components/ui/card";
@@ -101,13 +101,13 @@ function InterventionDetail() {
   const { data: contracts = [] } = useContracts();
   const { data: assignableMembers = [] } = useAssignableMembers();
   const technicienName = resolveTechnicianName(assignableMembers, intervention?.technicien_id) ?? settings?.nom_technicien ?? null;
-  const { data: role } = useCurrentRole();
-  const { data: myPoste } = useMyPoste();
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setCurrentUserId(data.user?.id ?? null));
   }, []);
-  const isTechnician = role !== undefined && role !== "owner" && myPoste === "technicien";
+  // L'owner peut s'auto-assigner un chantier et garde donc accès au bloc
+  // compte-rendu pour ses propres interventions (les techniciens, eux,
+  // utilisent l'interface dédiée /tech/* et n'atteignent jamais cette page).
   const isMine = !!intervention && !!currentUserId && intervention.technicien_id === currentUserId;
   const { data: siteHistory = [] } = useSiteHistory(intervention?.client_id, intervention?.adresse_site, id);
 
@@ -123,17 +123,6 @@ function InterventionDetail() {
     setConsignesInput(intervention?.consignes ?? "");
   }, [intervention?.consignes]);
 
-  // Un technicien ne peut consulter que ses propres interventions assignées —
-  // sinon retour au Terrain.
-  useEffect(() => {
-    if (!intervention || !currentUserId || role === undefined || myPoste === undefined) return;
-    if (role === "owner" || myPoste !== "technicien") return;
-    if (intervention.technicien_id !== currentUserId) {
-      toast.error("Accès non autorisé.");
-      navigate({ to: "/interventions", replace: true });
-    }
-  }, [intervention, currentUserId, role, myPoste, navigate]);
-
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [uploadingPhotos, setUploadingPhotos] = useState(false);
   const [showSignatureCanvas, setShowSignatureCanvas] = useState(false);
@@ -143,10 +132,6 @@ function InterventionDetail() {
   const photos: string[] = intervention?.photos ?? [];
   const rapportNum = intervention ? reportNumber(intervention.id) : "";
   const hasCompteRendu = !!(intervention?.produits?.trim() || intervention?.observations?.trim());
-  // Le compte-rendu appartient à la personne assignée : le technicien ne peut
-  // le remplir qu'une fois le chantier démarré ; owner/bureau peuvent toujours
-  // le remplir/corriger (y compris pour un chantier qui n'est pas le leur).
-  const canFillCompteRendu = !isTechnician || (isMine && intervention?.statut !== "planifiee");
 
   // ── Photo handlers ──────────────────────────────────────────────────────────
 
@@ -753,10 +738,6 @@ ${intervention.observations ? `
 
   const clientEmail = intervention.client?.email ?? "";
   const hasSig = !!intervention.signature_url;
-  const assignedContract = contracts.find((c) => c.id === intervention.contract_id);
-  const contractLabel = assignedContract
-    ? `${assignedContract.numero ? `${assignedContract.numero} — ` : ""}${assignedContract.nom_etablissement || "Établissement"}`
-    : "Aucun contrat";
 
   return (
     <div className="space-y-4">
@@ -766,18 +747,12 @@ ${intervention.observations ? `
           <ArrowLeft className="mr-1 h-4 w-4" /> Retour
         </Link>
         <div className="flex items-center gap-2">
-          {isTechnician ? (
-            <span className={cn("rounded-full px-2.5 py-1 text-xs font-semibold uppercase", STATUT_COLORS[intervention.statut] ?? "bg-muted")}>
-              {statutLabel(intervention.statut)}
-            </span>
-          ) : (
-            <Select value={intervention.statut} onValueChange={updateStatut}>
-              <SelectTrigger className="h-8 text-xs w-36"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {STATUTS_INTERVENTION.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          )}
+          <Select value={intervention.statut} onValueChange={updateStatut}>
+            <SelectTrigger className="h-8 text-xs w-36"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {STATUTS_INTERVENTION.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive"><Trash2 className="h-4 w-4" /></Button>
@@ -815,8 +790,8 @@ ${intervention.observations ? `
         </CardContent>
       </Card>
 
-      {/* 1bis. Retour du responsable — visible technicien assigné + owner/bureau */}
-      {intervention.retour_admin && (!isTechnician || isMine) && (
+      {/* 1bis. Retour du responsable */}
+      {intervention.retour_admin && (
         <Card className="border-orange-400 bg-orange-50 dark:border-orange-900/60 dark:bg-orange-950/30">
           <CardContent className="p-4 flex items-start gap-2.5">
             <MessageSquareWarning className="h-4 w-4 text-orange-600 dark:text-orange-400 mt-0.5 shrink-0" />
@@ -828,8 +803,8 @@ ${intervention.observations ? `
         </Card>
       )}
 
-      {/* 1ter. Workflow technicien — uniquement sur sa propre intervention */}
-      {isTechnician && isMine && (
+      {/* 1ter. Workflow terrain — owner assigné à son propre chantier */}
+      {isMine && (
         <Card className="border-primary/30 bg-primary/5">
           <CardContent className="p-4 space-y-2.5">
             <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Mon intervention</h2>
@@ -865,7 +840,7 @@ ${intervention.observations ? `
       )}
 
       {/* 1quater. Vérification admin — rapport terminé en attente de validation */}
-      {!isTechnician && intervention.statut === "realisee" && (
+      {intervention.statut === "realisee" && (
         <Card className="border-orange-300 bg-orange-50 dark:border-orange-900/50 dark:bg-orange-950/20">
           <CardContent className="p-4 space-y-2.5">
             <h2 className="text-xs font-semibold uppercase tracking-wide text-orange-700 dark:text-orange-400">
@@ -933,53 +908,41 @@ ${intervention.observations ? `
 
             <div className="space-y-1.5">
               <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Contrat rattaché</div>
-              {isTechnician ? (
-                <p className="text-sm">{contractLabel}</p>
-              ) : (
-                <Select value={intervention.contract_id ?? ""} onValueChange={handleContractChange}>
-                  <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Aucun contrat" /></SelectTrigger>
-                  <SelectContent>
-                    {contracts.filter((c) => c.client_id === intervention.client_id).map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.numero ? `${c.numero} — ` : ""}{c.nom_etablissement || "Établissement"}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
+              <Select value={intervention.contract_id ?? ""} onValueChange={handleContractChange}>
+                <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Aucun contrat" /></SelectTrigger>
+                <SelectContent>
+                  {contracts.filter((c) => c.client_id === intervention.client_id).map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.numero ? `${c.numero} — ` : ""}{c.nom_etablissement || "Établissement"}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-1.5">
               <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Technicien assigné</div>
-              {isTechnician ? (
-                <p className="text-sm">{technicienName ?? "—"}</p>
-              ) : (
-                <TechnicianSelect
-                  value={intervention.technicien_id ?? "none"}
-                  onValueChange={handleTechnicienChange}
-                  triggerClassName="h-8 text-sm"
-                />
-              )}
+              <TechnicianSelect
+                value={intervention.technicien_id ?? "none"}
+                onValueChange={handleTechnicienChange}
+                triggerClassName="h-8 text-sm"
+              />
             </div>
 
             <div className="space-y-1.5">
               <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground flex items-center gap-1">
                 <ClipboardEdit className="h-3 w-3" /> Consignes pour le technicien
               </div>
-              {isTechnician ? (
-                <p className="text-sm whitespace-pre-wrap">{intervention.consignes || "—"}</p>
-              ) : (
-                <div className="space-y-1.5">
-                  <Textarea
-                    rows={2}
-                    value={consignesInput}
-                    onChange={(e) => setConsignesInput(e.target.value)}
-                    placeholder="Ex. clés chez le gardien, attention chien…"
-                    className="text-sm"
-                  />
-                  <Button size="sm" variant="outline" onClick={handleSaveConsignes}>Enregistrer</Button>
-                </div>
-              )}
+              <div className="space-y-1.5">
+                <Textarea
+                  rows={2}
+                  value={consignesInput}
+                  onChange={(e) => setConsignesInput(e.target.value)}
+                  placeholder="Ex. clés chez le gardien, attention chien…"
+                  className="text-sm"
+                />
+                <Button size="sm" variant="outline" onClick={handleSaveConsignes}>Enregistrer</Button>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -997,42 +960,32 @@ ${intervention.observations ? `
             <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground flex items-center gap-1">
               <Timer className="h-3 w-3" /> Durée sur site
             </div>
-            {isTechnician ? (
-              <p className="text-sm">
-                {intervention.heure_debut && intervention.heure_fin
-                  ? `Durée sur site : ${formatDuration(intervention.heure_debut, intervention.heure_fin)}`
-                  : intervention.heure_debut
-                  ? `Démarrée le ${formatDateTime(intervention.heure_debut)}`
-                  : "—"}
-              </p>
-            ) : (
-              <div className="flex flex-wrap items-center gap-2">
-                <div className="flex items-center gap-1.5">
-                  <label className="text-xs text-muted-foreground">Début</label>
-                  <input
-                    type="datetime-local"
-                    className="h-8 rounded-md border border-input bg-transparent px-2 text-xs"
-                    value={heureDebutInput}
-                    onChange={(e) => setHeureDebutInput(e.target.value)}
-                  />
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <label className="text-xs text-muted-foreground">Fin</label>
-                  <input
-                    type="datetime-local"
-                    className="h-8 rounded-md border border-input bg-transparent px-2 text-xs"
-                    value={heureFinInput}
-                    onChange={(e) => setHeureFinInput(e.target.value)}
-                  />
-                </div>
-                <Button size="sm" variant="outline" className="h-8" onClick={handleSaveTimes}>Enregistrer</Button>
-                {intervention.heure_debut && intervention.heure_fin && (
-                  <span className="text-xs text-muted-foreground">
-                    Durée : {formatDuration(intervention.heure_debut, intervention.heure_fin)}
-                  </span>
-                )}
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-1.5">
+                <label className="text-xs text-muted-foreground">Début</label>
+                <input
+                  type="datetime-local"
+                  className="h-8 rounded-md border border-input bg-transparent px-2 text-xs"
+                  value={heureDebutInput}
+                  onChange={(e) => setHeureDebutInput(e.target.value)}
+                />
               </div>
-            )}
+              <div className="flex items-center gap-1.5">
+                <label className="text-xs text-muted-foreground">Fin</label>
+                <input
+                  type="datetime-local"
+                  className="h-8 rounded-md border border-input bg-transparent px-2 text-xs"
+                  value={heureFinInput}
+                  onChange={(e) => setHeureFinInput(e.target.value)}
+                />
+              </div>
+              <Button size="sm" variant="outline" className="h-8" onClick={handleSaveTimes}>Enregistrer</Button>
+              {intervention.heure_debut && intervention.heure_fin && (
+                <span className="text-xs text-muted-foreground">
+                  Durée : {formatDuration(intervention.heure_debut, intervention.heure_fin)}
+                </span>
+              )}
+            </div>
           </CardContent>
         </Card>
 
@@ -1042,11 +995,9 @@ ${intervention.observations ? `
             <CardContent className="p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Compte-rendu</h3>
-                {!isTechnician && (
-                  <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setEditingCompteRendu(true)}>
-                    <Pencil className="mr-1 h-3 w-3" /> Modifier
-                  </Button>
-                )}
+                <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setEditingCompteRendu(true)}>
+                  <Pencil className="mr-1 h-3 w-3" /> Modifier
+                </Button>
               </div>
               <InfoRow icon={<Package className="h-4 w-4" />} label="Produits utilisés" value={intervention.produits || "—"} />
               <InfoRow icon={<ClipboardList className="h-4 w-4" />} label="Quantité" value={intervention.quantite || "—"} />
@@ -1061,7 +1012,7 @@ ${intervention.observations ? `
               )}
             </CardContent>
           </Card>
-        ) : canFillCompteRendu ? (
+        ) : (
           <Card>
             <CardContent className="p-4">
               <InterventionForm
@@ -1084,12 +1035,6 @@ ${intervention.observations ? `
                   Annuler
                 </Button>
               )}
-            </CardContent>
-          </Card>
-        ) : (
-          <Card>
-            <CardContent className="p-4 text-sm text-muted-foreground text-center">
-              Disponible une fois l'intervention démarrée.
             </CardContent>
           </Card>
         )}
@@ -1215,12 +1160,12 @@ ${intervention.observations ? `
 
         {clientEmail ? (
           <Button
-            className={cn("w-full", !isTechnician && intervention.statut === "realisee" && "bg-primary hover:bg-primary/90")}
-            variant={!isTechnician && intervention.statut === "realisee" ? "default" : "outline"}
+            className={cn("w-full", intervention.statut === "realisee" && "bg-primary hover:bg-primary/90")}
+            variant={intervention.statut === "realisee" ? "default" : "outline"}
             onClick={handleSendEmail}
           >
             <Mail className="mr-2 h-4 w-4" />
-            {!isTechnician && intervention.statut === "realisee" ? "Valider et envoyer le rapport" : "Envoyer rapport par email"}
+            {intervention.statut === "realisee" ? "Valider et envoyer le rapport" : "Envoyer rapport par email"}
           </Button>
         ) : (
           <div className="space-y-1">

@@ -19,9 +19,10 @@ export const PERMISSION_LABELS: Record<PermissionKey, string> = {
 
 export const ALL_PERMISSION_KEYS = Object.keys(PERMISSION_LABELS) as PermissionKey[];
 
-// Modèles rapides (points de départ ; le patron ajuste ensuite les cases)
+// Modèle rapide (point de départ ; le patron ajuste ensuite les cases).
+// Les techniciens n'ont pas de preset : ils utilisent l'interface dédiée
+// /tech/* et ces autorisations ne s'appliquent qu'au poste bureau.
 export const PRESET_BUREAU: PermissionKey[] = ["accueil", "clients", "devis", "contrats", "factures", "reappro"];
-export const PRESET_TECHNICIEN: PermissionKey[] = ["stock"]; // Terrain est déjà toujours visible
 
 export function presetToPermissions(keys: PermissionKey[]): Record<string, boolean> {
   return Object.fromEntries(ALL_PERMISSION_KEYS.map((k) => [k, keys.includes(k)]));

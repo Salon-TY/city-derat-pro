@@ -7,7 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useInterventions, useCurrentRole, useMyPoste, useAssignableMembers, type Intervention } from "@/lib/queries";
+import { useInterventions, useAssignableMembers, type Intervention } from "@/lib/queries";
 import { STATUTS_INTERVENTION, formatDateFR } from "@/lib/schemas";
 import {
   Plus, Search, Filter, X, List as ListIcon, Sun, CalendarDays,
@@ -102,23 +102,7 @@ function InterventionsPage() {
   const [technicienFilter, setTechnicienFilter] = useState("all");
 
   const { data: allInterventions = [], isLoading } = useInterventions();
-  const { data: role } = useCurrentRole();
-  const { data: myPoste } = useMyPoste();
   const { data: assignableMembers = [] } = useAssignableMembers();
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => setCurrentUserId(data.user?.id ?? null));
-  }, []);
-
-  // Un technicien (non-propriétaire, poste "technicien") est verrouillé sur
-  // ses propres interventions — pas de bascule vers "Tous". Le bureau et le
-  // propriétaire voient tout, comme avant.
-  const isTechnician = role !== undefined && role !== "owner" && myPoste === "technicien";
-  useEffect(() => {
-    if (isTechnician && currentUserId && technicienFilter !== currentUserId) {
-      setTechnicienFilter(currentUserId);
-    }
-  }, [isTechnician, currentUserId]);
 
   const aVerifierCount = useMemo(
     () => allInterventions.filter((i) => i.statut === "realisee").length,
@@ -130,7 +114,7 @@ function InterventionsPage() {
     statutFilter !== "all" ? 1 : 0,
     typeFilter !== "all" ? 1 : 0,
     periodFilter !== "all" ? 1 : 0,
-    (!isTechnician && technicienFilter !== "all") ? 1 : 0,
+    technicienFilter !== "all" ? 1 : 0,
   ].reduce((a, b) => a + b, 0);
 
   const filteredList = useMemo(() => {
@@ -193,7 +177,7 @@ function InterventionsPage() {
 
   function resetFilters() {
     setQ(""); setStatutFilter("all"); setTypeFilter("all"); setPeriodFilter("all"); setSortDir("desc");
-    if (!isTechnician) setTechnicienFilter("all");
+    setTechnicienFilter("all");
   }
 
   return (
@@ -206,7 +190,7 @@ function InterventionsPage() {
       </div>
 
       {/* File d'attente admin : rapports terminés en attente de vérification */}
-      {!isTechnician && aVerifierCount > 0 && (
+      {aVerifierCount > 0 && (
         <button
           onClick={() => { setStatutFilter("realisee"); setView("list"); setFiltersOpen(false); }}
           className="flex w-full items-center gap-2 rounded-xl border border-orange-300 bg-orange-50 px-3 py-2.5 text-sm text-orange-700 transition-colors hover:border-orange-400 dark:border-orange-900/50 dark:bg-orange-950/20 dark:text-orange-400"
@@ -235,9 +219,8 @@ function InterventionsPage() {
         ))}
       </div>
 
-      {/* Technicien — s'applique aux 3 vues (Liste/Jour/Semaine). Masqué pour
-          un technicien : il est verrouillé sur ses propres interventions. */}
-      {!isTechnician && assignableMembers.length > 1 && (
+      {/* Technicien — s'applique aux 3 vues (Liste/Jour/Semaine). */}
+      {assignableMembers.length > 1 && (
         <div className="flex items-center gap-2">
           <UserRound className="h-4 w-4 shrink-0 text-muted-foreground" />
           <Select value={technicienFilter} onValueChange={setTechnicienFilter}>
