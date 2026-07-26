@@ -30,8 +30,12 @@ async function resolveHomeRoute(): Promise<"/tech" | "/"> {
 
 function AuthPage() {
   const navigate = useNavigate();
+  const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
+  const [signupEmail, setSignupEmail] = useState("");
+  const [signupPassword, setSignupPassword] = useState("");
+  const [signupPasswordConfirm, setSignupPasswordConfirm] = useState("");
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -57,6 +61,33 @@ function AuthPage() {
     }
   }
 
+  async function handleSignup(e: React.FormEvent) {
+    e.preventDefault();
+    if (signupPassword !== signupPasswordConfirm) {
+      toast.error("Les mots de passe ne correspondent pas.");
+      return;
+    }
+    setLoading(true);
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email: signupEmail.trim(),
+        password: signupPassword,
+      });
+      if (error) throw error;
+      if (data.session) {
+        toast.success("Compte créé");
+        navigate({ to: await resolveHomeRoute(), replace: true });
+      } else {
+        toast.success("Compte créé. Vérifiez votre email pour confirmer votre inscription.");
+        setMode("signin");
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Impossible de créer le compte.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-primary px-4 py-10">
       <Card className="w-full max-w-sm">
@@ -65,37 +96,89 @@ function AuthPage() {
             <Bug className="h-7 w-7" />
           </div>
           <CardTitle className="mt-2 text-2xl tracking-tight">CITY DERAT</CardTitle>
-          <CardDescription>Connectez-vous à votre espace</CardDescription>
+          <CardDescription>
+            {mode === "signin" ? "Connectez-vous à votre espace" : "Créez votre compte"}
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="identifier">Identifiant ou email</Label>
-              <Input
-                id="identifier"
-                type="text"
-                required
-                value={identifier}
-                onChange={(e) => setIdentifier(e.target.value)}
-                autoComplete="username"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Mot de passe</Label>
-              <Input
-                id="password"
-                type="password"
-                required
-                minLength={6}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                autoComplete="current-password"
-              />
-            </div>
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Patientez..." : "Se connecter"}
-            </Button>
-          </form>
+          {mode === "signin" ? (
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="identifier">Identifiant ou email</Label>
+                <Input
+                  id="identifier"
+                  type="text"
+                  required
+                  value={identifier}
+                  onChange={(e) => setIdentifier(e.target.value)}
+                  autoComplete="username"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="password">Mot de passe</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  required
+                  minLength={6}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="current-password"
+                />
+              </div>
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading ? "Patientez..." : "Se connecter"}
+              </Button>
+            </form>
+          ) : (
+            <form onSubmit={handleSignup} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="signup-email">Email</Label>
+                <Input
+                  id="signup-email"
+                  type="email"
+                  required
+                  value={signupEmail}
+                  onChange={(e) => setSignupEmail(e.target.value)}
+                  autoComplete="email"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="signup-password">Mot de passe</Label>
+                <Input
+                  id="signup-password"
+                  type="password"
+                  required
+                  minLength={8}
+                  value={signupPassword}
+                  onChange={(e) => setSignupPassword(e.target.value)}
+                  autoComplete="new-password"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="signup-password-confirm">Confirmer le mot de passe</Label>
+                <Input
+                  id="signup-password-confirm"
+                  type="password"
+                  required
+                  minLength={8}
+                  value={signupPasswordConfirm}
+                  onChange={(e) => setSignupPasswordConfirm(e.target.value)}
+                  autoComplete="new-password"
+                />
+              </div>
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading ? "Patientez..." : "Créer le compte"}
+              </Button>
+            </form>
+          )}
+          <button
+            type="button"
+            onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
+            className="mt-4 w-full text-center text-sm text-muted-foreground underline-offset-4 hover:underline"
+          >
+            {mode === "signin" ? "Pas de compte ? Créer un compte" : "Déjà un compte ? Se connecter"}
+          </button>
         </CardContent>
       </Card>
     </div>
